@@ -10,10 +10,10 @@ export function TelegramPopup() {
     // Check if dismissed
     const isDismissed = localStorage.getItem("noteSprint_tgPromptDismissed")
     if (!isDismissed) {
-      // Trigger after 2 seconds
+      // Trigger after 45 seconds of usage
       const timer = setTimeout(() => {
         setIsOpen(true)
-      }, 2000)
+      }, 45000)
       return () => clearTimeout(timer)
     }
   }, [])

@@ -5,6 +5,7 @@ import { usePDFStore } from "@/store/usePDFStore"
 import { generateFinalPDF } from "@/lib/pdfExport"
 import { GradientButton } from "@/components/shared/GradientButton"
 import { CheckCircle2, FileDown, Download } from "lucide-react"
+import { FeedbackWidget } from "@/components/shared/FeedbackWidget"
 
 export function Step6Processing() {
   const { pages, filters, layout } = usePDFStore()
@@ -125,6 +126,9 @@ export function Step6Processing() {
       >
         Process Another File
       </button>
+      
+      {/* Feedback Widget only shown during the download step */}
+      <FeedbackWidget />
     </div>
   )
 }
