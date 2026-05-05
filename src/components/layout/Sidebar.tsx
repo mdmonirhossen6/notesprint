@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Users, ClipboardList, Wrench, Settings, Send, MessageSquare } from "lucide-react"
+import { Home, Users, ClipboardList, Wrench, Settings, Send, MessageSquare, Facebook } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function Sidebar() {
@@ -78,6 +78,15 @@ export function Sidebar() {
             >
               <MessageSquare size={16} className="text-[#5865F2]" />
               <span>Discord</span>
+            </a>
+            <a 
+              href="https://www.facebook.com/profile.php?id=61588934380460" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <Facebook size={16} className="text-[#1877F2]" />
+              <span>Facebook</span>
             </a>
           </div>
         </div>
