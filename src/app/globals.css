@@ -4,8 +4,49 @@
 
 @layer base {
   :root {
-    --background: #0B0614;
+    /* Default dark theme */
+    --background: #0B0B10;
+    --surface: #15151C;
+    --border: #26262F;
     --foreground: #FFFFFF;
+    --success: #22C55E;
+    --warning: #F59E0B;
+    --card: #15151C;
+    --card-border: #26262F;
+    --muted: rgba(255, 255, 255, 0.1);
+    --muted-foreground: #9CA3AF;
+
+    /* Default Purple Accent */
+    --primary: #8B5CF6;
+    --primary-light: #6366F1;
+  }
+
+  .light {
+    --background: #F9FAFB;
+    --surface: #FFFFFF;
+    --border: #E5E7EB;
+    --foreground: #111827;
+    --card: #FFFFFF;
+    --card-border: #E5E7EB;
+    --muted: rgba(0, 0, 0, 0.05);
+    --muted-foreground: #6B7280;
+  }
+
+  .theme-purple {
+    --primary: #8B5CF6;
+    --primary-light: #6366F1;
+  }
+  .theme-blue {
+    --primary: #3B82F6;
+    --primary-light: #60A5FA;
+  }
+  .theme-green {
+    --primary: #10B981;
+    --primary-light: #34D399;
+  }
+  .theme-pink {
+    --primary: #EC4899;
+    --primary-light: #F472B6;
   }
 }
 
@@ -14,12 +55,16 @@
     @apply border-card-border;
   }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary selection:text-white;
-    /* Subtle radial purple glow at the top center only */
-    background-image: radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.15) 0%, transparent 40%);
-    background-color: #0B0B10;
+    @apply bg-background text-foreground antialiased selection:bg-primary selection:text-white transition-colors duration-300;
+    /* Subtle radial glow based on primary color */
+    background-image: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--primary) 15%, transparent) 0%, transparent 40%);
+    background-color: var(--background);
     background-attachment: fixed;
   }
+  
+  html.font-small { font-size: 14px; }
+  html.font-medium { font-size: 16px; }
+  html.font-large { font-size: 18px; }
 }
 
 @layer utilities {

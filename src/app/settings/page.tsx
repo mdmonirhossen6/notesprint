@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useSettingsStore } from "@/store/useSettingsStore"
 import { Switch } from "@/components/ui/switch"
 import { Card } from "@/components/ui/card"
-import { Info, Monitor, Palette, Type, Layout, Settings2, Trash2, RotateCcw, MessageCircle, Bug, Share2, Users, Send, MessageSquare, Facebook } from "lucide-react"
+import { Info, Monitor, Palette, Type, Layout, Settings2, Trash2, RotateCcw, MessageCircle, Bug, Share2, Users, Send, MessageSquare } from "lucide-react"
 
 export default function SettingsPage() {
   const settings = useSettingsStore()
@@ -21,9 +21,12 @@ export default function SettingsPage() {
   }
 
   const handleClearCache = async () => {
+    if (typeof window === 'undefined') return
     // Clear any local blobs or canvas data
-    const dbs = await window.indexedDB.databases()
-    dbs.forEach(db => { if (db.name) window.indexedDB.deleteDatabase(db.name) })
+    if (window.indexedDB && window.indexedDB.databases) {
+      const dbs = await window.indexedDB.databases()
+      dbs.forEach(db => { if (db.name) window.indexedDB.deleteDatabase(db.name) })
+    }
     showToast("Cached files cleared")
   }
 
@@ -355,7 +358,9 @@ export default function SettingsPage() {
             className="flex items-center gap-4 p-4 rounded-xl border border-border bg-background hover:bg-[#1877F2]/10 hover:border-[#1877F2]/30 transition-all group"
           >
             <div className="w-10 h-10 rounded-full bg-[#1877F2]/10 flex items-center justify-center text-[#1877F2] group-hover:scale-110 transition-transform">
-              <Facebook size={20} />
+              <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
             </div>
             <div>
               <p className="font-semibold text-sm text-foreground">Facebook</p>

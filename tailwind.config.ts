@@ -11,27 +11,27 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0B0B10",
-        surface: "#15151C",
-        border: "#26262F",
-        foreground: "#FFFFFF",
+        background: "var(--background)",
+        surface: "var(--surface)",
+        border: "var(--border)",
+        foreground: "var(--foreground)",
         primary: {
-          DEFAULT: "#8B5CF6",
+          DEFAULT: "var(--primary)",
         },
-        success: "#22C55E",
-        warning: "#F59E0B",
+        success: "var(--success)",
+        warning: "var(--warning)",
         card: {
-          DEFAULT: "#15151C",
-          border: "#26262F",
+          DEFAULT: "var(--card)",
+          border: "var(--card-border)",
         },
         muted: {
-          DEFAULT: "rgba(255, 255, 255, 0.1)",
-          foreground: "#9CA3AF",
+          DEFAULT: "var(--muted)",
+          foreground: "var(--muted-foreground)",
         },
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
-        "primary-gradient": "linear-gradient(135deg, #8B5CF6, #6366F1)",
+        "primary-gradient": "linear-gradient(135deg, var(--primary), var(--primary-light, var(--primary)))",
       },
       animation: {
         "spin-slow": "spin 3s linear infinite",
