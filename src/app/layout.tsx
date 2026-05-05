@@ -20,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark theme-purple font-medium" suppressHydrationWarning>
       <body className={`${inter.className} min-h-screen antialiased bg-background text-foreground`}>
         <ThemeProvider>
           <div className="flex min-h-screen">
