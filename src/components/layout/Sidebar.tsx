@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Users, ClipboardList, Wrench, Settings } from "lucide-react"
+import { Home, Users, ClipboardList, Wrench, Settings, Send, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function Sidebar() {
@@ -48,8 +48,39 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="p-6">
-        {/* Placeholder for future sidebar items if needed */}
+      <div className="p-4 mt-auto">
+        <div className="bg-gradient-to-b from-primary/10 to-primary/5 border border-primary/20 rounded-2xl p-4 shadow-[0_0_15px_rgba(139,92,246,0.05)]">
+          <h3 className="text-xs font-semibold text-primary mb-3 uppercase tracking-wider px-1">Community</h3>
+          <div className="space-y-2">
+            <a 
+              href="https://t.me/trackingerweb" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <Send size={16} className="text-[#2AABEE]" />
+              <span>Telegram Channel</span>
+            </a>
+            <a 
+              href="https://t.me/trackingerapp" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <Users size={16} className="text-[#2AABEE]" />
+              <span>Telegram Group</span>
+            </a>
+            <a 
+              href="https://discord.gg/Kv7xmf2zVC" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <MessageSquare size={16} className="text-[#5865F2]" />
+              <span>Discord</span>
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   )
