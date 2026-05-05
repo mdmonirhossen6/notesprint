@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useSettingsStore } from "@/store/useSettingsStore"
 import { Switch } from "@/components/ui/switch"
 import { Card } from "@/components/ui/card"
-import { Info, Monitor, Palette, Type, Layout, Settings2, Trash2, RotateCcw, MessageCircle, Bug, Share2 } from "lucide-react"
+import { Info, Monitor, Palette, Type, Layout, Settings2, Trash2, RotateCcw, MessageCircle, Bug, Share2, Users, Send, MessageSquare, Facebook } from "lucide-react"
 
 export default function SettingsPage() {
   const settings = useSettingsStore()
@@ -295,38 +295,103 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      {/* E. About & Community */}
-      <div className="px-2 pb-4">
-        <h3 className="text-sm font-semibold text-muted-foreground mb-4 uppercase tracking-wider">About & Community</h3>
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between py-2">
-            <span className="text-sm font-medium">App Version</span>
-            <span className="text-sm text-muted-foreground font-mono">v1.0.0</span>
-          </div>
-          <a href="https://t.me/trackingerweb" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 py-2 text-sm hover:text-primary transition-colors">
-            <MessageCircle size={18} className="text-muted-foreground" />
-            <span>Join Telegram Channel</span>
-          </a>
-          <a href="mailto:support@notesprint.app" className="flex items-center gap-3 py-2 text-sm hover:text-primary transition-colors">
-            <Bug size={18} className="text-muted-foreground" />
-            <span>Report a Bug</span>
-          </a>
-          <button 
-            onClick={() => {
-              if (navigator.share) {
-                navigator.share({ title: 'NoteSprint', url: window.location.origin })
-              } else {
-                navigator.clipboard.writeText(window.location.origin)
-                showToast("Link copied to clipboard")
-              }
-            }}
-            className="flex items-center gap-3 py-2 text-sm hover:text-primary transition-colors text-left"
-          >
-            <Share2 size={18} className="text-muted-foreground" />
-            <span>Share NoteSprint</span>
-          </button>
+      {/* E. Community */}
+      <Card className="p-6 bg-card border-card-border/50">
+        <div className="flex items-center gap-2 mb-6 text-primary">
+          <Users size={20} />
+          <h2 className="text-lg font-semibold text-foreground">Join Our Community</h2>
         </div>
-      </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <a 
+            href="https://discord.gg/Kv7xmf2zVC" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-4 p-4 rounded-xl border border-border bg-background hover:bg-[#5865F2]/10 hover:border-[#5865F2]/30 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-full bg-[#5865F2]/10 flex items-center justify-center text-[#5865F2] group-hover:scale-110 transition-transform">
+              <MessageSquare size={20} />
+            </div>
+            <div>
+              <p className="font-semibold text-sm text-foreground">Discord</p>
+              <p className="text-xs text-muted-foreground">Chat with the team</p>
+            </div>
+          </a>
+
+          <a 
+            href="https://t.me/trackingerweb" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-4 p-4 rounded-xl border border-border bg-background hover:bg-[#2AABEE]/10 hover:border-[#2AABEE]/30 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-full bg-[#2AABEE]/10 flex items-center justify-center text-[#2AABEE] group-hover:scale-110 transition-transform">
+              <Send size={20} />
+            </div>
+            <div>
+              <p className="font-semibold text-sm text-foreground">Telegram Channel</p>
+              <p className="text-xs text-muted-foreground">Latest updates</p>
+            </div>
+          </a>
+
+          <a 
+            href="https://t.me/trackingerapp" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-4 p-4 rounded-xl border border-border bg-background hover:bg-[#2AABEE]/10 hover:border-[#2AABEE]/30 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-full bg-[#2AABEE]/10 flex items-center justify-center text-[#2AABEE] group-hover:scale-110 transition-transform">
+              <MessageCircle size={20} />
+            </div>
+            <div>
+              <p className="font-semibold text-sm text-foreground">Telegram Group</p>
+              <p className="text-xs text-muted-foreground">Community chat</p>
+            </div>
+          </a>
+
+          <a 
+            href="https://www.facebook.com/profile.php?id=61588934380460" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-4 p-4 rounded-xl border border-border bg-background hover:bg-[#1877F2]/10 hover:border-[#1877F2]/30 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-full bg-[#1877F2]/10 flex items-center justify-center text-[#1877F2] group-hover:scale-110 transition-transform">
+              <Facebook size={20} />
+            </div>
+            <div>
+              <p className="font-semibold text-sm text-foreground">Facebook</p>
+              <p className="text-xs text-muted-foreground">Follow our page</p>
+            </div>
+          </a>
+        </div>
+
+        <div className="mt-8 pt-6 border-t border-border flex flex-col sm:flex-row gap-4 items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">App Version:</span>
+            <span className="text-sm text-muted-foreground font-mono bg-background px-2 py-0.5 rounded border border-border">v1.0.0</span>
+          </div>
+          
+          <div className="flex gap-4">
+            <a href="mailto:support@notesprint.app" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors">
+              <Bug size={16} />
+              <span>Report Bug</span>
+            </a>
+            <button 
+              onClick={() => {
+                if (navigator.share) {
+                  navigator.share({ title: 'NoteSprint', url: window.location.origin })
+                } else {
+                  navigator.clipboard.writeText(window.location.origin)
+                  showToast("Link copied to clipboard")
+                }
+              }}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+            >
+              <Share2 size={16} />
+              <span>Share</span>
+            </button>
+          </div>
+        </div>
+      </Card>
     </div>
   )
 }
