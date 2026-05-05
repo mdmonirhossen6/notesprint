@@ -9,12 +9,20 @@ import { useAdminStore } from "@/store/useAdminStore"
 
 type FeedbackState = "idle" | "rating" | "comment" | "success"
 
-export function FeedbackWidget() {
+export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
   const [isOpen, setIsOpen] = useState(false)
   const [feedbackState, setFeedbackState] = useState<FeedbackState>("rating")
   const [rating, setRating] = useState<number | null>(null)
   const [comment, setComment] = useState("")
   const addFeedback = useAdminStore((state) => state.addFeedback)
+
+  // Handle autoOpen prop
+  useEffect(() => {
+    if (autoOpen) {
+      const timer = setTimeout(() => setIsOpen(true), 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [autoOpen])
 
   // Auto-reset when closed
   useEffect(() => {

@@ -128,7 +128,7 @@ export function Step6Processing() {
       </button>
       
       {/* Feedback Widget only shown during the download step */}
-      <FeedbackWidget />
+      <FeedbackWidget autoOpen={true} />
     </div>
   )
 }
