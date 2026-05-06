@@ -65,9 +65,9 @@ export function Step3Preview() {
 
   return (
     <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-300">
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold mb-2">Preview and Edit Pages</h2>
-        <p className="text-muted-foreground text-sm">Select the pages you want to keep</p>
+      <div className="text-center mb-4 sm:mb-6">
+        <h2 className="text-lg sm:text-2xl font-bold mb-1 sm:mb-2">Preview and Edit Pages</h2>
+        <p className="text-muted-foreground text-xs sm:text-sm">Select the pages you want to keep</p>
       </div>
 
       <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 mb-6 flex items-start gap-3">
@@ -77,7 +77,7 @@ export function Step3Preview() {
         </p>
       </div>
 
-      <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+      <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4 max-h-[320px] sm:max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
         {pages.map((page, index) => (
           <div 
             key={page.id} 
@@ -100,7 +100,7 @@ export function Step3Preview() {
 
             <div 
               className={`w-full flex items-center justify-center p-2 ${!page.selected && 'opacity-50 grayscale'}`}
-              style={{ height: '300px' }}
+              style={{ height: '180px' }}
             >
               <img 
                 src={page.thumbnailUrl} 
@@ -112,18 +112,18 @@ export function Step3Preview() {
         ))}
       </div>
 
-      <div className="flex items-center justify-between border-t border-card-border pt-6 mt-auto">
-        <div className="flex flex-col gap-1">
-          <div className="flex gap-4">
-            <Button variant="outline" onClick={() => setStep(2)}>
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-card-border pt-4 sm:pt-6">
+        <div className="flex flex-col gap-1 w-full sm:w-auto">
+          <div className="flex gap-2 w-full">
+            <Button variant="outline" onClick={() => setStep(2)} className="flex-1 sm:flex-none h-10 px-3 text-xs sm:text-sm">
               Back
             </Button>
-            <Button variant="ghost" className="text-primary hover:text-primary hover:bg-primary/10">
-              <FilePlus2 size={16} className="mr-2" />
-              Add Blank Slide
+            <Button variant="ghost" className="flex-1 sm:flex-none text-primary hover:text-primary hover:bg-primary/10 h-10 px-3 text-xs sm:text-sm">
+              <FilePlus2 size={14} className="mr-1 sm:mr-2" />
+              <span>Add Slide</span>
             </Button>
           </div>
-          <span className="text-xs text-muted-foreground ml-2 mt-2">
+          <span className="text-[10px] sm:text-xs text-muted-foreground ml-1 mt-1">
             {selectedCount} of {pages.length} pages selected
           </span>
         </div>
@@ -131,6 +131,7 @@ export function Step3Preview() {
         <GradientButton 
           onClick={() => setStep(4)}
           disabled={selectedCount === 0}
+          className="w-full sm:w-auto py-2.5 sm:py-3 text-sm sm:text-base"
         >
           Enhance Document
         </GradientButton>

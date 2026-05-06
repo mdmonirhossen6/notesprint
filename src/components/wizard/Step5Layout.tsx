@@ -11,9 +11,9 @@ export function Step5Layout() {
 
   return (
     <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-300">
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold mb-2">Layout Settings</h2>
-        <p className="text-muted-foreground text-sm">Configure how your final PDF will look</p>
+      <div className="text-center mb-4 sm:mb-6">
+        <h2 className="text-lg sm:text-2xl font-bold mb-1 sm:mb-2">Layout Settings</h2>
+        <p className="text-muted-foreground text-xs sm:text-sm">Configure how your final PDF will look</p>
       </div>
 
       <div className="flex flex-col md:flex-row gap-8 flex-1 mb-8">
@@ -141,11 +141,11 @@ export function Step5Layout() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between border-t border-card-border pt-6 mt-auto">
-        <Button variant="outline" onClick={() => setStep(4)}>
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-card-border pt-4 sm:pt-6">
+        <Button variant="outline" onClick={() => setStep(4)} className="w-full sm:w-auto h-10 px-4 text-xs sm:text-sm">
           Back
         </Button>
-        <GradientButton onClick={() => setStep(6)}>
+        <GradientButton onClick={() => setStep(6)} className="w-full sm:w-auto py-2.5 sm:py-3 text-sm sm:text-base">
           Process File ☁↑
         </GradientButton>
       </div>

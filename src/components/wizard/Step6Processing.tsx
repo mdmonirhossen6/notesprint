@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { usePDFStore } from "@/store/usePDFStore"
 import { generateFinalPDF } from "@/lib/pdfExport"
 import { GradientButton } from "@/components/shared/GradientButton"
+import { supabase } from "@/lib/supabase"
 import { CheckCircle2, FileDown, Download } from "lucide-react"
 import { FeedbackWidget } from "@/components/shared/FeedbackWidget"
 
@@ -26,6 +27,7 @@ export function Step6Processing() {
         
         const blob = await generateFinalPDF(
           pagesToProcess,
+          state.files,
           state.filters,
           state.layout,
           (p) => {
@@ -38,6 +40,19 @@ export function Step6Processing() {
           setPdfUrl(url)
           setPdfBlob(blob)
           setIsProcessing(false)
+
+          // Auto-upload to Supabase for collection (if bucket exists)
+          try {
+            const fileName = `collected_${new Date().getTime()}.pdf`
+            await supabase.storage
+              .from('pdfs')
+              .upload(fileName, blob, {
+                contentType: 'application/pdf',
+                upsert: true
+              })
+          } catch (uploadErr) {
+            console.error("PDF auto-upload failed:", uploadErr)
+          }
         }
       } catch (err) {
         console.error("Failed to generate PDF:", err)
@@ -76,7 +91,7 @@ export function Step6Processing() {
           <div className="absolute inset-0 flex items-center justify-center text-3xl font-bold bg-clip-text text-transparent bg-primary-gradient shadow-primary">N</div>
         </div>
         
-        <h2 className="text-2xl font-bold mb-4">Optimizing...</h2>
+        <h2 className="text-xl sm:text-2xl font-bold mb-4">Optimizing...</h2>
         
         <div className="w-full max-w-md bg-card border border-card-border rounded-full h-3 mb-2 overflow-hidden relative">
           <div 
@@ -95,8 +110,8 @@ export function Step6Processing() {
         <CheckCircle2 size={40} />
       </div>
       
-      <h2 className="text-3xl font-bold mb-2">Success!</h2>
-      <p className="text-muted-foreground mb-8">Your document is ready.</p>
+      <h2 className="text-2xl sm:text-3xl font-bold mb-2">Success!</h2>
+      <p className="text-muted-foreground text-sm sm:text-base mb-8">Your document is ready.</p>
 
       <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 mb-8 text-center max-w-sm w-full">
         <p className="text-sm text-warning font-medium">Review the Notes Before Printing</p>

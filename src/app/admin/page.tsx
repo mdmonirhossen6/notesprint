@@ -2,21 +2,63 @@
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Lock, LogOut, Users, MessageSquare, Star, Trash2 } from "lucide-react"
-import { useAdminStore } from "@/store/useAdminStore"
+import { Lock, LogOut, Users, MessageSquare, Star, Trash2, FileDown } from "lucide-react"
+import { useAdminStore, Feedback } from "@/store/useAdminStore"
 import { Button } from "@/components/ui/button"
+import { supabase } from "@/lib/supabase"
 
 export default function AdminPage() {
   const [mounted, setMounted] = useState(false)
   const [passcode, setPasscode] = useState("")
   const [error, setError] = useState(false)
+  const [dbFeedbacks, setDbFeedbacks] = useState<Feedback[]>([])
+  const [pdfFiles, setPdfFiles] = useState<any[]>([])
+  const [pdfCount, setPdfCount] = useState(0)
+  const [loading, setLoading] = useState(true)
   
   const { isAuthenticated, login, logout, feedbacks, clearFeedbacks } = useAdminStore()
+
+  // Fetch feedbacks and PDF count from Supabase
+  const fetchData = async () => {
+    try {
+      setLoading(true)
+      
+      // Fetch feedbacks
+      const { data: feedbackData, error: feedbackError } = await supabase
+        .from('feedbacks')
+        .select('*')
+        .order('timestamp', { ascending: false })
+
+      if (feedbackError) throw feedbackError
+      if (feedbackData) setDbFeedbacks(feedbackData)
+
+      // Fetch PDF files from storage
+      const { data: storageData, error: storageError } = await supabase
+        .storage
+        .from('pdfs')
+        .list('', {
+          limit: 100,
+          sortBy: { column: 'created_at', order: 'desc' }
+        })
+
+      if (!storageError && storageData) {
+        setPdfFiles(storageData.filter(file => file.name !== '.emptyFolderPlaceholder'))
+        setPdfCount(storageData.filter(file => file.name !== '.emptyFolderPlaceholder').length)
+      }
+    } catch (err) {
+      console.error('Error fetching data:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Avoid hydration mismatch
   useEffect(() => {
     setMounted(true)
-  }, [])
+    if (isAuthenticated) {
+      fetchData()
+    }
+  }, [isAuthenticated])
 
   if (!mounted) return null
 
@@ -33,9 +75,10 @@ export default function AdminPage() {
   const activeUsers = Math.floor(Math.random() * 50) + 12
 
   // Calculate stats
-  const totalFeedbacks = feedbacks.length
+  const displayFeedbacks = dbFeedbacks.length > 0 ? dbFeedbacks : feedbacks
+  const totalFeedbacks = displayFeedbacks.length
   const averageRating = totalFeedbacks > 0 
-    ? (feedbacks.reduce((acc, curr) => acc + curr.rating, 0) / totalFeedbacks).toFixed(1)
+    ? (displayFeedbacks.reduce((acc, curr) => acc + curr.rating, 0) / totalFeedbacks).toFixed(1)
     : "0.0"
 
   const formatDate = (isoString: string) => {
@@ -44,15 +87,17 @@ export default function AdminPage() {
     })
   }
 
-  const getEmojiForRating = (rating: number) => {
-    switch(rating) {
-      case 1: return "😞";
-      case 2: return "😕";
-      case 3: return "😐";
-      case 4: return "🙂";
-      case 5: return "🤩";
-      default: return "⭐";
-    }
+  const getPdfUrl = (fileName: string) => {
+    const { data } = supabase.storage.from('pdfs').getPublicUrl(fileName)
+    return data.publicUrl
+  }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
   if (!isAuthenticated) {
@@ -119,11 +164,11 @@ export default function AdminPage() {
         {/* Metric Cards */}
         <div className="flex items-center gap-4 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
-            <Users className="h-6 w-6" />
+            <FileDown className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Active Users</p>
-            <p className="text-2xl font-bold text-neutral-900 dark:text-white">{activeUsers}</p>
+            <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Collected PDFs</p>
+            <p className="text-2xl font-bold text-neutral-900 dark:text-white">{pdfCount}</p>
           </div>
         </div>
 
@@ -160,7 +205,12 @@ export default function AdminPage() {
         </div>
         
         <div className="overflow-x-auto">
-          {feedbacks.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 text-neutral-500 dark:text-neutral-400">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900 dark:border-neutral-700 dark:border-t-white" />
+              <p className="mt-4">Loading feedbacks...</p>
+            </div>
+          ) : displayFeedbacks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-neutral-500 dark:text-neutral-400">
               <MessageSquare className="mb-2 h-8 w-8 opacity-20" />
               <p>No feedback received yet.</p>
@@ -175,7 +225,7 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                {feedbacks.map((item) => (
+                {displayFeedbacks.map((item) => (
                   <tr key={item.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900/50">
                     <td className="whitespace-nowrap px-6 py-4 text-neutral-500 dark:text-neutral-400">
                       {formatDate(item.timestamp)}
@@ -188,6 +238,68 @@ export default function AdminPage() {
                     </td>
                     <td className="px-6 py-4 text-neutral-700 dark:text-neutral-300">
                       {item.comment || <span className="text-neutral-400 italic">No comment provided</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden dark:border-neutral-800 dark:bg-neutral-950">
+        <div className="flex items-center justify-between border-b border-neutral-200 px-6 py-4 dark:border-neutral-800">
+          <h2 className="font-semibold text-neutral-900 dark:text-white">Collected Documents</h2>
+          <span className="text-xs font-medium bg-neutral-100 text-neutral-600 px-2 py-1 rounded-full dark:bg-neutral-900 dark:text-neutral-400">
+            Recent {pdfFiles.length} files
+          </span>
+        </div>
+        
+        <div className="overflow-x-auto">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 text-neutral-500 dark:text-neutral-400">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900 dark:border-neutral-700 dark:border-t-white" />
+              <p className="mt-4">Loading documents...</p>
+            </div>
+          ) : pdfFiles.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-neutral-500 dark:text-neutral-400">
+              <FileDown className="mb-2 h-8 w-8 opacity-20" />
+              <p>No documents collected yet.</p>
+            </div>
+          ) : (
+            <table className="w-full text-left text-sm">
+              <thead className="bg-neutral-50 text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400">
+                <tr>
+                  <th className="px-6 py-3 font-medium">File Name</th>
+                  <th className="px-6 py-3 font-medium">Date</th>
+                  <th className="px-6 py-3 font-medium">Size</th>
+                  <th className="px-6 py-3 font-medium text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                {pdfFiles.map((file) => (
+                  <tr key={file.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900/50">
+                    <td className="px-6 py-4 font-medium text-neutral-900 dark:text-neutral-200">
+                      {file.name}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-neutral-500 dark:text-neutral-400">
+                      {formatDate(file.created_at)}
+                    </td>
+                    <td className="px-6 py-4 text-neutral-500 dark:text-neutral-400">
+                      {formatFileSize(file.metadata?.size || 0)}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        asChild
+                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                      >
+                        <a href={getPdfUrl(file.name)} target="_blank" rel="noopener noreferrer">
+                          <FileDown className="mr-2 h-4 w-4" />
+                          Download
+                        </a>
+                      </Button>
                     </td>
                   </tr>
                 ))}

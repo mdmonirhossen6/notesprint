@@ -28,9 +28,9 @@ export function Step1Upload() {
 
   return (
     <div className="flex flex-col h-full flex-1 animate-in fade-in zoom-in-95 duration-300">
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold mb-2">Upload Files</h2>
-        <p className="text-muted-foreground text-sm">Drag and drop your PDF notes here</p>
+      <div className="text-center mb-4 sm:mb-6">
+        <h2 className="text-lg sm:text-2xl font-bold mb-1 sm:mb-2">Upload Files</h2>
+        <p className="text-muted-foreground text-xs sm:text-sm">Drag and drop your PDF notes here</p>
       </div>
 
       <div 
@@ -73,8 +73,8 @@ export function Step1Upload() {
             ))}
           </div>
 
-          <div className="flex justify-end">
-            <GradientButton onClick={() => setStep(2)}>
+          <div className="flex justify-end mt-4">
+            <GradientButton onClick={() => setStep(2)} className="w-full sm:w-auto py-2.5 sm:py-3 text-sm sm:text-base">
               Continue to Reorder
             </GradientButton>
           </div>

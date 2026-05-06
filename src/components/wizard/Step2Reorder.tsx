@@ -31,9 +31,9 @@ export function Step2Reorder() {
 
   return (
     <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-300">
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold mb-2">Reorder & Merge</h2>
-        <p className="text-muted-foreground text-sm">Arrange your PDFs in the desired order</p>
+      <div className="text-center mb-4 sm:mb-6">
+        <h2 className="text-lg sm:text-2xl font-bold mb-1 sm:mb-2">Reorder & Merge</h2>
+        <p className="text-muted-foreground text-xs sm:text-sm">Arrange your PDFs in the desired order</p>
       </div>
 
       <div className="flex-1 space-y-3 mb-8 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
@@ -78,18 +78,18 @@ export function Step2Reorder() {
         ))}
       </div>
 
-      <div className="flex items-center justify-between border-t border-card-border pt-6">
-        <div className="flex gap-4">
-          <Button variant="outline" onClick={() => setStep(1)}>
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-card-border pt-4 sm:pt-6">
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button variant="outline" onClick={() => setStep(1)} className="flex-1 sm:flex-none h-10 px-3 text-xs sm:text-sm">
             Back
           </Button>
-          <Button variant="ghost" className="text-primary hover:text-primary hover:bg-primary/10" onClick={() => setStep(1)}>
-            <Plus size={16} className="mr-2" />
-            Add More PDFs
+          <Button variant="ghost" className="flex-1 sm:flex-none text-primary hover:text-primary hover:bg-primary/10 h-10 px-3 text-xs sm:text-sm" onClick={() => setStep(1)}>
+            <Plus size={14} className="mr-1 sm:mr-2" />
+            <span>Add More</span>
           </Button>
         </div>
         
-        <GradientButton onClick={() => setStep(3)}>
+        <GradientButton onClick={() => setStep(3)} className="w-full sm:w-auto py-2.5 sm:py-3 text-sm sm:text-base">
           Continue to Preview
         </GradientButton>
       </div>

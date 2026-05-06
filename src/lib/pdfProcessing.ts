@@ -30,8 +30,8 @@ export async function extractPDFPages(file: File, pdfId: string): Promise<Array<
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i)
       
-      // Scale down for thumbnail (increased to 1.0 for clearer preview)
-      const viewport = page.getViewport({ scale: 1.0 })
+      // Scale down for thumbnail (increased to 1.5 for clearer preview)
+      const viewport = page.getViewport({ scale: 1.5 })
       
       // Create canvas
       const canvas = document.createElement('canvas')

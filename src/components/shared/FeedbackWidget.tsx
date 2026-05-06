@@ -6,6 +6,7 @@ import { MessageSquare, X, CheckCircle2, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useAdminStore } from "@/store/useAdminStore"
+import { supabase } from "@/lib/supabase"
 
 type FeedbackState = "idle" | "rating" | "comment" | "success"
 
@@ -49,14 +50,36 @@ export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
     setFeedbackState("comment")
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (rating === null) return
     
-    // Save to the admin store
-    addFeedback({
-      rating,
-      comment
-    })
+    // Save to Supabase
+    try {
+      const { error } = await supabase
+        .from('feedbacks')
+        .insert([
+          { 
+            rating, 
+            comment,
+            timestamp: new Date().toISOString()
+          }
+        ])
+
+      if (error) throw error
+      
+      // Also save to the local admin store for immediate UI update if needed
+      addFeedback({
+        rating,
+        comment
+      })
+    } catch (error) {
+      console.error('Error submitting feedback:', error)
+      // Fallback to local store if Supabase fails
+      addFeedback({
+        rating,
+        comment
+      })
+    }
     
     setFeedbackState("success")
     
