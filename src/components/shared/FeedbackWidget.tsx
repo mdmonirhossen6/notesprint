@@ -15,6 +15,7 @@ export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
   const [feedbackState, setFeedbackState] = useState<FeedbackState>("rating")
   const [rating, setRating] = useState<number | null>(null)
   const [comment, setComment] = useState("")
+  const [email, setEmail] = useState("")
   const addFeedback = useAdminStore((state) => state.addFeedback)
 
   // Handle autoOpen prop
@@ -32,6 +33,7 @@ export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
         setFeedbackState("rating")
         setRating(null)
         setComment("")
+        setEmail("")
       }, 300)
       return () => clearTimeout(timer)
     }
@@ -60,7 +62,8 @@ export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
         .insert([
           { 
             rating, 
-            comment
+            comment,
+            email: email || null
           }
         ])
 
@@ -68,22 +71,23 @@ export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
       fetch('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rating, comment })
+        body: JSON.stringify({ rating, comment, email })
       }).catch(err => console.error('Telegram notification failed:', err))
 
       // Also save to the local admin store for immediate UI update if needed
       addFeedback({
         rating,
-        comment
+        comment,
+        email
       })
     } catch (error: any) {
       console.error('Error submitting feedback to Supabase:', error)
-      alert(`Note: Feedback saved locally but failed to reach Supabase: ${error.message || 'Unknown error'}`)
       
       // Fallback to local store if Supabase fails
       addFeedback({
         rating,
-        comment
+        comment,
+        email
       })
     }
     
@@ -154,8 +158,15 @@ export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
                     exit={{ opacity: 0, x: 20 }}
                     className="flex flex-col gap-3"
                   >
+                    <input
+                      type="email"
+                      placeholder="Your email (optional)"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-primary dark:border-neutral-800"
+                    />
                     <Textarea
-                      placeholder="Tell us more (optional)..."
+                      placeholder="Tell us more..."
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
                       className="min-h-[80px] resize-none text-sm"
