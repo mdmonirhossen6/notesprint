@@ -53,7 +53,7 @@ export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
   }
 
   const handleSubmit = async () => {
-    if (rating === null) return
+    if (rating === null || !email.trim()) return
     
     // Save to Supabase
     try {
@@ -63,7 +63,7 @@ export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
           { 
             rating, 
             comment,
-            email: email || null
+            email: email
           }
         ])
 
@@ -160,10 +160,11 @@ export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
                   >
                     <input
                       type="email"
-                      placeholder="Your email (optional)"
+                      required
+                      placeholder="Enter your email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-primary dark:border-neutral-800"
+                      className="w-full rounded-lg border border-neutral-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-primary dark:border-neutral-800 transition-colors"
                     />
                     <Textarea
                       placeholder="Tell us more..."
@@ -176,7 +177,12 @@ export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
                       <Button variant="ghost" size="sm" onClick={() => setFeedbackState("rating")}>
                         Back
                       </Button>
-                      <Button size="sm" onClick={handleSubmit} className="gap-2">
+                      <Button 
+                        size="sm" 
+                        onClick={handleSubmit} 
+                        className="gap-2"
+                        disabled={!email.trim()}
+                      >
                         Submit <Send className="h-3 w-3" />
                       </Button>
                     </div>
