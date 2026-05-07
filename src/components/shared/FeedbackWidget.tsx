@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { MessageSquare, X, CheckCircle2, Send } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { useAdminStore } from "@/store/useAdminStore"
 import { supabase } from "@/lib/supabase"
 
@@ -150,28 +152,23 @@ export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
-                    className="flex flex-col gap-4 py-2"
+                    className="flex flex-col gap-3"
                   >
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                      We'd love to hear more from you! Please fill out our feedback form to help us improve.
-                    </p>
-                    <a
-                      href="https://docs.google.com/forms/d/e/1FAIpQLScuqaXlXgGZexpIO7ri02yAtwdfxCeQxkCdCI7WO8zNM2tErg/viewform?usp=sharing&ouid=107285934840557712909"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => {
-                        handleSubmit();
-                      }}
-                      className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-primary-gradient text-white text-sm font-semibold shadow-lg hover:shadow-primary/30 transition-all active:scale-95"
-                    >
-                      Fill Feedback Form <Send className="h-4 w-4" />
-                    </a>
-                    <button 
-                      onClick={() => setFeedbackState("rating")}
-                      className="text-xs text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
-                    >
-                      Change rating
-                    </button>
+                    <Textarea
+                      placeholder="Tell us more (optional)..."
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      className="min-h-[80px] resize-none text-sm"
+                      autoFocus
+                    />
+                    <div className="flex justify-between">
+                      <Button variant="ghost" size="sm" onClick={() => setFeedbackState("rating")}>
+                        Back
+                      </Button>
+                      <Button size="sm" onClick={handleSubmit} className="gap-2">
+                        Submit <Send className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </motion.div>
                 )}
 
