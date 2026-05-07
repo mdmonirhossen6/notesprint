@@ -6,6 +6,8 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { TopNav } from "@/components/layout/TopNav";
 import { TelegramPopup } from "@/components/shared/TelegramPopup";
 import { ThemeProvider } from "@/components/shared/ThemeProvider";
+import { FeedbackWidget } from "@/components/shared/FeedbackWidget";
+import { TutorialModal } from "@/components/shared/TutorialModal";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -34,6 +36,8 @@ export default function RootLayout({
             </div>
             <MobileNav />
             <TelegramPopup />
+            <FeedbackWidget />
+            <TutorialModal />
           </main>
         </div>
         </ThemeProvider>

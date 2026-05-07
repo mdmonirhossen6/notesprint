@@ -15,6 +15,7 @@ export default function AdminPage() {
   const [pdfFiles, setPdfFiles] = useState<any[]>([])
   const [pdfCount, setPdfCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   
   const { isAuthenticated, login, logout, feedbacks, clearFeedbacks } = useAdminStore()
 
@@ -42,11 +43,15 @@ export default function AdminPage() {
         })
 
       if (!storageError && storageData) {
-        setPdfFiles(storageData.filter(file => file.name !== '.emptyFolderPlaceholder'))
-        setPdfCount(storageData.filter(file => file.name !== '.emptyFolderPlaceholder').length)
+        const actualFiles = storageData.filter(file => file.name !== '.emptyFolderPlaceholder')
+        setPdfFiles(actualFiles)
+        setPdfCount(actualFiles.length)
+      } else if (storageError) {
+        console.error('Storage error:', storageError)
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching data:', err)
+      setFetchError(err.message || 'Failed to connect to Supabase. Check your table and bucket settings.')
     } finally {
       setLoading(false)
     }
@@ -98,6 +103,13 @@ export default function AdminPage() {
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
+  const getEmojiForRating = (rating: number) => {
+    const emojis: Record<number, string> = {
+      1: "😞", 2: "😕", 3: "😐", 4: "🙂", 5: "🤩"
+    }
+    return emojis[rating] || "😐"
   }
 
   if (!isAuthenticated) {
@@ -214,6 +226,7 @@ export default function AdminPage() {
             <div className="flex flex-col items-center justify-center py-12 text-neutral-500 dark:text-neutral-400">
               <MessageSquare className="mb-2 h-8 w-8 opacity-20" />
               <p>No feedback received yet.</p>
+              {fetchError && <p className="mt-2 text-xs text-red-500 font-mono">{fetchError}</p>}
             </div>
           ) : (
             <table className="w-full text-left text-sm">
@@ -228,7 +241,7 @@ export default function AdminPage() {
                 {displayFeedbacks.map((item) => (
                   <tr key={item.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900/50">
                     <td className="whitespace-nowrap px-6 py-4 text-neutral-500 dark:text-neutral-400">
-                      {formatDate(item.timestamp)}
+                      {formatDate(item.timestamp || (item as any).created_at)}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">

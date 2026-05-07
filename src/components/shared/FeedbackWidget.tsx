@@ -60,20 +60,26 @@ export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
         .insert([
           { 
             rating, 
-            comment,
-            timestamp: new Date().toISOString()
+            comment
           }
         ])
 
-      if (error) throw error
-      
+      // Send to Telegram via our secure API route
+      fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating, comment })
+      }).catch(err => console.error('Telegram notification failed:', err))
+
       // Also save to the local admin store for immediate UI update if needed
       addFeedback({
         rating,
         comment
       })
-    } catch (error) {
-      console.error('Error submitting feedback:', error)
+    } catch (error: any) {
+      console.error('Error submitting feedback to Supabase:', error)
+      alert(`Note: Feedback saved locally but failed to reach Supabase: ${error.message || 'Unknown error'}`)
+      
       // Fallback to local store if Supabase fails
       addFeedback({
         rating,
