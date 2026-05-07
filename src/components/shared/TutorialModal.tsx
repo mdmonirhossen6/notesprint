@@ -1,24 +1,66 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Play, X } from "lucide-react"
 
 export function TutorialModal() {
   const [isOpen, setIsOpen] = useState(false)
+  const [showTooltip, setShowTooltip] = useState(true)
+
+  // Hide tooltip after 8 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => setShowTooltip(false), 8000)
+    return () => clearTimeout(timer)
+  }, [])
 
   return (
     <>
-      {/* Floating Button or Trigger */}
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-24 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary-gradient text-white shadow-[0_0_20px_rgba(139,92,246,0.4)] transition-all hover:shadow-[0_0_30px_rgba(139,92,246,0.6)]"
-        title="Watch Tutorial"
-      >
-        <Play className="h-5 w-5 fill-current ml-0.5" />
-      </motion.button>
+      {/* Floating Button with Animation */}
+      <div className="fixed bottom-24 right-6 z-50 flex flex-col items-end gap-2">
+        <AnimatePresence>
+          {showTooltip && (
+            <motion.div
+              initial={{ opacity: 0, x: 20, scale: 0.8 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 20, scale: 0.8 }}
+              className="px-3 py-1.5 rounded-lg bg-neutral-900 border border-white/10 text-xs font-medium text-white shadow-xl whitespace-nowrap"
+            >
+              Watch how it works! 🎥
+              <div className="absolute top-full right-4 w-2 h-2 bg-neutral-900 border-r border-b border-white/10 rotate-45 -translate-y-1" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="relative">
+          {/* Pulsing background effect */}
+          <motion.div
+            animate={{
+              scale: [1, 1.5, 1],
+              opacity: [0.5, 0, 0.5],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            className="absolute inset-0 rounded-full bg-primary/40 blur-md"
+          />
+          
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => {
+              setIsOpen(true)
+              setShowTooltip(false)
+            }}
+            className="relative flex h-12 w-12 items-center justify-center rounded-full bg-primary-gradient text-white shadow-[0_0_20px_rgba(139,92,246,0.4)] transition-all hover:shadow-[0_0_30px_rgba(139,92,246,0.6)]"
+            title="Watch Tutorial"
+          >
+            <Play className="h-5 w-5 fill-current ml-0.5" />
+          </motion.button>
+        </div>
+      </div>
 
       <AnimatePresence>
         {isOpen && (
