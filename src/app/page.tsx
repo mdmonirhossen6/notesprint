@@ -42,24 +42,13 @@ export default function Home() {
           <span>5k+ Thank You</span>
         </div>
 
-        <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
+        <div className="pt-6">
           <Link href="/process">
-            <GradientButton className="text-lg px-8 py-6 w-full sm:w-auto" rounded="full">
+            <GradientButton className="text-lg px-8 py-6" rounded="full">
               Start Processing
               <ArrowRight className="ml-2" size={20} />
             </GradientButton>
           </Link>
-          <a 
-            href="https://youtu.be/QiPac7tY7Vw" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-sm font-medium text-muted-foreground hover:text-white transition-colors flex items-center gap-2 px-6 py-3 rounded-full border border-card-border hover:bg-white/5"
-          >
-            <div className="w-6 h-6 rounded-full bg-red-500/10 flex items-center justify-center">
-              <div className="w-0 h-0 border-t-[4px] border-t-transparent border-l-[6px] border-l-red-500 border-b-[4px] border-b-transparent ml-0.5" />
-            </div>
-            Watch Tutorial
-          </a>
         </div>
       </section>
 
