@@ -1,4 +1,5 @@
 // We dynamically import pdfjs-dist to avoid SSR issues like DOMMatrix not defined
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let pdfjsLib: any = null;
 
 export async function extractPDFPages(file: File, pdfId: string): Promise<Array<{

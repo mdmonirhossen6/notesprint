@@ -9,7 +9,7 @@ import { CheckCircle2, FileDown, Download } from "lucide-react"
 import { FeedbackWidget } from "@/components/shared/FeedbackWidget"
 
 export function Step6Processing() {
-  const { pages, filters, layout } = usePDFStore()
+  const { pages, layout } = usePDFStore()
   const selectedPages = pages.filter(p => p.selected)
   
   const [progress, setProgress] = useState(0)

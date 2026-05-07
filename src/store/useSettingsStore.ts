@@ -17,7 +17,7 @@ interface SettingsState {
   setTheme: (theme: 'dark' | 'system' | 'light') => void
   setAccentColor: (color: 'purple' | 'blue' | 'green' | 'pink') => void
   setFontSize: (size: 'small' | 'medium' | 'large') => void
-  setDefaultProcessingPref: (key: string, value: any) => void
+  setDefaultProcessingPref: (key: string, value: unknown) => void
   setShowTips: (show: boolean) => void
   resetAll: () => void
 }

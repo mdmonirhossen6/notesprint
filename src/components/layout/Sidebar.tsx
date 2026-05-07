@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Wrench, Settings, Send, Users, MessageSquare } from "lucide-react"
+import { Home, Wrench, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const communityLinks = [

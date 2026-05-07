@@ -17,17 +17,17 @@ export function TutorialModal() {
   return (
     <>
       {/* Floating Button with Animation */}
-      <div className="fixed bottom-24 right-6 z-50 flex flex-col items-end gap-2">
+      <div className="fixed bottom-24 left-6 md:left-[280px] z-50 flex flex-col items-start gap-2">
         <AnimatePresence>
           {showTooltip && (
             <motion.div
-              initial={{ opacity: 0, x: 20, scale: 0.8 }}
+              initial={{ opacity: 0, x: -20, scale: 0.8 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 20, scale: 0.8 }}
+              exit={{ opacity: 0, x: -20, scale: 0.8 }}
               className="px-3 py-1.5 rounded-lg bg-neutral-900 border border-white/10 text-xs font-medium text-white shadow-xl whitespace-nowrap"
             >
               Watch how it works! 🎥
-              <div className="absolute top-full right-4 w-2 h-2 bg-neutral-900 border-r border-b border-white/10 rotate-45 -translate-y-1" />
+              <div className="absolute top-full left-4 w-2 h-2 bg-neutral-900 border-l border-b border-white/10 rotate-45 -translate-y-1" />
             </motion.div>
           )}
         </AnimatePresence>

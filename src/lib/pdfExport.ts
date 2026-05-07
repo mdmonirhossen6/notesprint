@@ -1,14 +1,16 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import { applyFiltersToCanvas, FilterOptions } from './imageFilters'
+import { PageThumbnail, PDFFile, LayoutSettings } from '@/store/usePDFStore'
 
 // We dynamically import pdfjs-dist to avoid SSR issues
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let pdfjsLib: any = null;
 
 export async function generateFinalPDF(
-  pages: any[], // Selected page metadata
-  files: any[], // Original PDF files
+  pages: PageThumbnail[], // Selected page metadata
+  files: PDFFile[], // Original PDF files
   filters: FilterOptions,
-  layout: any, // layout settings
+  layout: LayoutSettings, // layout settings
   onProgress: (progress: number) => void
 ): Promise<Blob> {
   if (!pdfjsLib) {
@@ -64,6 +66,7 @@ export async function generateFinalPDF(
   for (let i = 0; i < numOutputPages; i++) {
     onProgress((i / numOutputPages) * 100)
     
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let pdfPage: any
     if (isA4) {
       pdfPage = pdfDoc.addPage([pageWidth, pageHeight])

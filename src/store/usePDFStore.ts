@@ -41,7 +41,7 @@ interface PDFStore {
   addFiles: (newFiles: File[]) => void
   removeFile: (id: string) => void
   reorderFiles: (startIndex: number, endIndex: number) => void
-  applyDefaults: (defaults: any) => void
+  applyDefaults: (defaults: Record<string, unknown>) => void
   
   pages: PageThumbnail[]
   setPages: (pages: PageThumbnail[]) => void
@@ -51,7 +51,7 @@ interface PDFStore {
   setFilter: (key: keyof Filters, value: boolean) => void
   
   layout: LayoutSettings
-  setLayout: (key: keyof LayoutSettings, value: any) => void
+  setLayout: (key: keyof LayoutSettings, value: LayoutSettings[keyof LayoutSettings]) => void
 }
 
 export const usePDFStore = create<PDFStore>((set) => ({

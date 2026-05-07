@@ -57,7 +57,7 @@ export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
     
     // Save to Supabase
     try {
-      const { error } = await supabase
+      await supabase
         .from('feedbacks')
         .insert([
           { 
@@ -80,7 +80,7 @@ export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
         comment,
         email
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error submitting feedback to Supabase:', error)
       
       // Fallback to local store if Supabase fails
@@ -100,7 +100,7 @@ export function FeedbackWidget({ autoOpen = false }: { autoOpen?: boolean }) {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+    <div className="fixed bottom-24 right-6 md:bottom-6 z-50 flex flex-col items-end">
       <AnimatePresence>
         {isOpen && (
           <motion.div

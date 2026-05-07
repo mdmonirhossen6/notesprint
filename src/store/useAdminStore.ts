@@ -19,7 +19,7 @@ interface AdminState {
 
 export const useAdminStore = create<AdminState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       isAuthenticated: false,
       feedbacks: [],
       

@@ -3,7 +3,7 @@ import { ArrowRight, Layers, FileEdit, Crop, Image, Scissors, Hash, Copy, SunMed
 import { GradientButton } from "@/components/shared/GradientButton"
 import { StatPill } from "@/components/shared/StatPill"
 import { ToolCard } from "@/components/shared/ToolCard"
-import { Card } from "@/components/ui/card"
+
 
 export default function Home() {
   const tools = [
