@@ -17,7 +17,7 @@ export interface PageThumbnail {
 
 interface LayoutSettings {
   quality: 'low' | 'medium' | 'high'
-  size: 'original' | 'a4'
+  size: 'original' | 'a3' | 'a4' | 'a5' | 'letter' | 'legal'
   orientation: 'portrait' | 'landscape'
   rows: number
   cols: number

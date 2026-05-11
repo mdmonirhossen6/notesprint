@@ -143,22 +143,18 @@ export default function SettingsPage() {
             <div className="space-y-3">
               <p className="text-sm font-medium">Document Size</p>
               <div className="flex gap-2 bg-background p-1 rounded-lg border border-border">
-                <button
-                  onClick={() => { settings.setDefaultProcessingPref('defaultSize', 'original'); showToast("Preference saved") }}
-                  className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    settings.defaultSize === 'original' ? 'bg-primary/20 text-primary' : 'text-muted-foreground'
-                  }`}
+                <select 
+                  value={settings.defaultSize}
+                  onChange={(e) => { settings.setDefaultProcessingPref('defaultSize', e.target.value); showToast("Preference saved") }}
+                  className="w-full bg-transparent text-sm outline-none px-2 py-1.5"
                 >
-                  Original
-                </button>
-                <button
-                  onClick={() => { settings.setDefaultProcessingPref('defaultSize', 'a4'); showToast("Preference saved") }}
-                  className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    settings.defaultSize === 'a4' ? 'bg-primary/20 text-primary' : 'text-muted-foreground'
-                  }`}
-                >
-                  A4
-                </button>
+                  <option value="original">Original</option>
+                  <option value="a3">A3 Page</option>
+                  <option value="a4">A4 Page</option>
+                  <option value="a5">A5 Page</option>
+                  <option value="letter">Letter</option>
+                  <option value="legal">Legal</option>
+                </select>
               </div>
             </div>
 

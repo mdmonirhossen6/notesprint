@@ -6,7 +6,7 @@ interface SettingsState {
   accentColor: 'purple' | 'blue' | 'green' | 'pink'
   fontSize: 'small' | 'medium' | 'large'
   defaultQuality: 'low' | 'medium' | 'high'
-  defaultSize: 'original' | 'a4'
+  defaultSize: 'original' | 'a3' | 'a4' | 'a5' | 'letter' | 'legal'
   defaultOrientation: 'portrait' | 'landscape'
   defaultRows: number
   defaultCols: number

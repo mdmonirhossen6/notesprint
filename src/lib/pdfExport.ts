@@ -29,13 +29,27 @@ export async function generateFinalPDF(
   }
   const q = qualityMap[layout.quality as keyof typeof qualityMap] || qualityMap.high
   
-  // Calculate layout parameters
-  const isA4 = layout.size === 'a4'
-  let pageWidth = isA4 ? 595.28 : 0
-  let pageHeight = isA4 ? 841.89 : 0
+  const isFixedSize = layout.size !== 'original'
   
-  if (layout.orientation === 'landscape' && isA4) {
-    [pageWidth, pageHeight] = [pageHeight, pageWidth]
+  let baseWidth = 0
+  let baseHeight = 0
+  
+  const paperSizes = {
+    a3: [841.89, 1190.55],
+    a4: [595.28, 841.89],
+    a5: [419.53, 595.28],
+    letter: [612, 792],
+    legal: [612, 1008]
+  }
+
+  if (isFixedSize && paperSizes[layout.size as keyof typeof paperSizes]) {
+    const size = paperSizes[layout.size as keyof typeof paperSizes]
+    baseWidth = size[0]
+    baseHeight = size[1]
+  }
+  
+  if (layout.orientation === 'landscape' && isFixedSize) {
+    [baseWidth, baseHeight] = [baseHeight, baseWidth]
   }
 
   const rows = layout.rows
@@ -66,9 +80,12 @@ export async function generateFinalPDF(
   for (let i = 0; i < numOutputPages; i++) {
     onProgress((i / numOutputPages) * 100)
     
+    let pageWidth = baseWidth
+    let pageHeight = baseHeight
+    
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let pdfPage: any
-    if (isA4) {
+    if (isFixedSize) {
       pdfPage = pdfDoc.addPage([pageWidth, pageHeight])
     }
 
@@ -101,7 +118,7 @@ export async function generateFinalPDF(
         const image = await pdfDoc.embedJpg(imgData)
         const imgDims = image.scale(1)
 
-        if (!isA4 && j === 0) {
+        if (!isFixedSize && j === 0) {
           pageWidth = imgDims.width * cols + margin * 2
           pageHeight = imgDims.height * rows + margin * 2
           pdfPage = pdfDoc.addPage([pageWidth, pageHeight])

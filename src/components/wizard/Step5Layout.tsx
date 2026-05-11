@@ -38,28 +38,46 @@ export function Step5Layout() {
           </div>
 
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-muted-foreground">Document Size</h3>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setLayout('size', 'original')}
-                className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-all ${
-                  layout.size === 'original'
-                    ? 'bg-primary/20 border-primary text-primary'
-                    : 'bg-card border-card-border text-muted-foreground hover:border-primary/50'
-                }`}
-              >
-                Original
-              </button>
-              <button
-                onClick={() => setLayout('size', 'a4')}
-                className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-all ${
-                  layout.size === 'a4'
-                    ? 'bg-primary/20 border-primary text-primary'
-                    : 'bg-card border-card-border text-muted-foreground hover:border-primary/50'
-                }`}
-              >
-                A4 Page
-              </button>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-muted-foreground">Document Size</h3>
+              <div className="flex items-center gap-1 bg-card border border-card-border rounded-lg p-1">
+                <button
+                  onClick={() => setLayout('orientation', 'portrait')}
+                  className={`px-2 py-1 text-xs rounded transition-all ${
+                    layout.orientation === 'portrait'
+                      ? 'bg-primary/20 text-primary font-medium'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Portrait
+                </button>
+                <button
+                  onClick={() => setLayout('orientation', 'landscape')}
+                  className={`px-2 py-1 text-xs rounded transition-all ${
+                    layout.orientation === 'landscape'
+                      ? 'bg-primary/20 text-primary font-medium'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Landscape
+                </button>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-2">
+              {(['original', 'a3', 'a4', 'a5', 'letter', 'legal'] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setLayout('size', s)}
+                  className={`py-2 px-2 rounded-lg text-xs font-medium capitalize border transition-all ${
+                    layout.size === s
+                      ? 'bg-primary/20 border-primary text-primary shadow-[inset_0_0_10px_rgba(139,92,246,0.2)]'
+                      : 'bg-card border-card-border text-muted-foreground hover:border-primary/50'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -110,8 +128,11 @@ export function Step5Layout() {
 
         <div className="flex-1 flex flex-col items-center justify-center">
           <div 
-            className="w-full max-w-[250px] bg-white rounded-md p-2 shadow-xl border border-card-border relative flex flex-col items-center justify-center"
-            style={{ height: '350px' }}
+            className="w-full bg-white rounded-md p-2 shadow-xl border border-card-border relative flex flex-col items-center justify-center transition-all duration-300"
+            style={{ 
+              maxWidth: layout.orientation === 'landscape' && layout.size !== 'original' ? '350px' : '250px',
+              height: layout.orientation === 'landscape' && layout.size !== 'original' ? '250px' : '350px'
+            }}
           >
             {/* Visual preview of N-up layout */}
             <div 
