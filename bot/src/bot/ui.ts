@@ -6,16 +6,6 @@ import type { MembershipSummary } from '../channels/membership.js';
 import { BOT_VERSION } from '../version.js';
 import { COMPRESSION_URL, compressionHelpSection } from './compression.js';
 
-export const TOOL_KEYS = ['process', 'merge', 'nup', 'enhance'] as const;
-export type ToolKey = (typeof TOOL_KEYS)[number];
-
-export const TOOL_LABELS: Record<ToolKey, { icon: string; title: string }> = {
-  process: { icon: '🧩', title: 'Process PDF' },
-  merge: { icon: '📎', title: 'Merge PDFs' },
-  nup: { icon: '🧾', title: 'N-up Layout' },
-  enhance: { icon: '✨', title: 'Enhance PDF' },
-};
-
 export function mainMenuText(firstName?: string): string {
   const greeting = firstName ? `Hi ${firstName}.` : 'Welcome.';
   return [
@@ -23,7 +13,7 @@ export function mainMenuText(firstName?: string): string {
     '',
     `${greeting} Pick a tool below — everything stays inside Telegram.`,
     '',
-    'PDFs up to 19 MB are processed one at a time and deleted immediately after delivery.',
+    'Process one PDF or merge several PDFs. Files are deleted immediately after delivery.',
   ].join('\n');
 }
 
@@ -31,9 +21,6 @@ export function mainMenuKeyboard(config: AppConfig, admin: boolean): InlineKeybo
   const keyboard = new InlineKeyboard()
     .text('🧩 Process PDF', 'tool:process')
     .text('📎 Merge PDFs', 'tool:merge')
-    .row()
-    .text('🧾 N-up Layout', 'tool:nup')
-    .text('✨ Enhance PDF', 'tool:enhance')
     .row()
     .url('Compress PDF', COMPRESSION_URL)
     .row()
@@ -49,13 +36,17 @@ export function mainMenuKeyboard(config: AppConfig, admin: boolean): InlineKeybo
   return keyboard;
 }
 
-export function helpText(maxUploadMb: number, maxOutputMb: number): string {
+export function helpText(
+  maxUploadMb: number,
+  maxOutputMb: number,
+  mergeMaxFiles = 10,
+): string {
   return [
     'NoteSprint help',
     '',
     '/start - open the main menu',
     '/verify - check channel membership again',
-    '/cancel - cancel an upload or running PDF',
+    '/cancel - cancel an upload, merge, or running PDF',
     '/whoami - show your Telegram ID and role',
     '/help - show this message',
     '',
@@ -63,6 +54,7 @@ export function helpText(maxUploadMb: number, maxOutputMb: number): string {
     'The bot checks membership again before opening any PDF tool.',
     '',
     `Upload limit: ${maxUploadMb} MB. Output limit: ${maxOutputMb} MB.`,
+    `Merge: send 2-${mergeMaxFiles} PDFs in order, then tap Finish Uploading.`,
     'Files are temporary. They are deleted after delivery and never archived.',
     '',
     ...compressionHelpSection(),
@@ -84,17 +76,6 @@ export function aboutText(): string {
     '',
     'Stateless deployment: no database, no permanent file storage.',
     'Project: https://github.com/mdmonirhossen6/notesprint',
-  ].join('\n');
-}
-
-export function toolPlaceholderText(key: ToolKey): string {
-  const tool = TOOL_LABELS[key];
-  return [
-    `${tool.icon} ${tool.title}`,
-    '',
-    'This tool is not active yet.',
-    '',
-    'No file has been processed.',
   ].join('\n');
 }
 

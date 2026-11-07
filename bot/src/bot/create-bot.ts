@@ -6,10 +6,12 @@ import { createStaticMembershipService } from '../channels/static-membership.js'
 import type { TaskQueue } from '../files/queue.js';
 import type { RateLimiter } from '../files/rate-limit.js';
 import type { UploadSessionStore } from '../files/upload-session.js';
+import type { MergeSessionStore } from '../files/merge-session.js';
 import type { JobRunner } from '../jobs/runner.js';
 import type { BotDeps } from './types.js';
 import { attachErrorHandler } from './ui.js';
 import { registerUserHandlers } from './handlers/user.js';
+import { registerMergeHandlers } from './handlers/merge.js';
 import { registerUploadHandlers } from './handlers/upload.js';
 import { registerAdminHandlers } from './handlers/admin.js';
 
@@ -18,12 +20,21 @@ export interface BotDependencies {
   logger: Logger;
   fileQueue: TaskQueue;
   uploadSessions: UploadSessionStore;
+  mergeSessions: MergeSessionStore;
   uploadRateLimiter: RateLimiter;
   jobRunner: JobRunner;
 }
 
 export function createBot(dependencies: BotDependencies): Bot {
-  const { config, logger, fileQueue, uploadSessions, uploadRateLimiter, jobRunner } = dependencies;
+  const {
+    config,
+    logger,
+    fileQueue,
+    uploadSessions,
+    mergeSessions,
+    uploadRateLimiter,
+    jobRunner,
+  } = dependencies;
 
   const bot = new Bot(config.botToken, {
     client: { apiRoot: config.botApiRoot },
@@ -50,11 +61,13 @@ export function createBot(dependencies: BotDependencies): Bot {
     membership,
     fileQueue,
     uploadSessions,
+    mergeSessions,
     uploadRateLimiter,
     jobRunner,
   };
 
   registerUserHandlers(bot, deps);
+  registerMergeHandlers(bot, deps);
   registerUploadHandlers(bot, deps);
   registerAdminHandlers(bot, deps);
 

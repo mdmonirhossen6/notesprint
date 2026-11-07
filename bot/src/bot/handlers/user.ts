@@ -2,9 +2,7 @@ import { InlineKeyboard } from 'grammy';
 import type { Bot, Context } from 'grammy';
 import { getAccessRole, isSuperAdmin } from '../../auth/access.js';
 import type { BotDeps } from '../types.js';
-import { ensureMembership } from '../membership-view.js';
 import {
-  TOOL_KEYS,
   aboutText,
   editOrReply,
   helpKeyboard,
@@ -13,7 +11,6 @@ import {
   joinRequiredText,
   mainMenuKeyboard,
   mainMenuText,
-  toolPlaceholderText,
 } from '../ui.js';
 
 export async function showHome(ctx: Context, deps: BotDeps): Promise<void> {
@@ -39,7 +36,7 @@ function backKeyboard(): InlineKeyboard {
 function showHelp(ctx: Context, deps: BotDeps): Promise<void> {
   return editOrReply(
     ctx,
-    helpText(deps.config.maxUploadMb, deps.config.maxOutputMb),
+    helpText(deps.config.maxUploadMb, deps.config.maxOutputMb, deps.config.mergeMaxFiles),
     helpKeyboard(),
   );
 }
@@ -117,35 +114,8 @@ export function registerUserHandlers(bot: Bot, deps: BotDeps): void {
 
   bot.callbackQuery(/^channel:nolink:\d+$/, async (ctx) => {
     await ctx.answerCallbackQuery({
-      text: 'This channel has no public join link. Please contact an administrator.',
+      text: 'This channel has no public join link yet. Please contact an administrator.',
       show_alert: true,
     });
-  });
-
-  for (const key of TOOL_KEYS) {
-    if (key === 'process') continue;
-
-    bot.callbackQuery(`tool:${key}`, async (ctx) => {
-      await ctx.answerCallbackQuery();
-      if (!(await ensureMembership(ctx, deps))) return;
-
-      await editOrReply(ctx, toolPlaceholderText(key), backKeyboard());
-    });
-  }
-
-  bot.callbackQuery('files:list', async (ctx) => {
-    await ctx.answerCallbackQuery();
-    if (!(await ensureMembership(ctx, deps))) return;
-
-    await editOrReply(
-      ctx,
-      [
-        '📁 My Files',
-        '',
-        'File history is disabled in this stateless deployment.',
-        'PDFs are deleted immediately after delivery.',
-      ].join('\n'),
-      backKeyboard(),
-    );
   });
 }

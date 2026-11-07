@@ -10,6 +10,9 @@ export type FileErrorCode =
   | 'download_failed'
   | 'process_failed'
   | 'too_many_pages'
+  | 'too_few_files'
+  | 'too_many_files'
+  | 'total_too_large'
   | 'cancelled';
 
 export class FileHandlingError extends Error {
@@ -52,6 +55,12 @@ export function userMessageForFileError(error: unknown, maxUploadMb?: number): s
       return 'This PDF could not be processed. It may be damaged or password-protected.';
     case 'too_many_pages':
       return 'This PDF has too many pages for the current processing limit.';
+    case 'too_few_files':
+      return 'Add at least 2 PDFs to merge.';
+    case 'too_many_files':
+      return 'Too many PDFs for one merge. Remove some and try again.';
+    case 'total_too_large':
+      return 'The combined PDFs are larger than the merge limit.';
     case 'cancelled':
       return 'Processing was cancelled.';
   }

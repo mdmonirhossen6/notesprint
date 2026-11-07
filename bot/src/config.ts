@@ -27,6 +27,8 @@ export interface AppConfig {
   maxUploadMb: number;
   maxOutputMb: number;
   maxPdfPages: number;
+  mergeMaxFiles: number;
+  mergeMaxTotalMb: number;
   processTimeoutSeconds: number;
   processConcurrency: number;
   downloadConcurrency: number;
@@ -238,6 +240,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     maxUploadMb: readInt(env, 'MAX_UPLOAD_MB', 19, 1, 20),
     maxOutputMb: readInt(env, 'MAX_OUTPUT_MB', 49, 1, 49),
     maxPdfPages: readInt(env, 'MAX_PDF_PAGES', 300, 1, 10000),
+    mergeMaxFiles: readInt(env, 'MERGE_MAX_FILES', 10, 2, 20),
+    mergeMaxTotalMb: readInt(env, 'MERGE_MAX_TOTAL_MB', 40, 2, 49),
     processTimeoutSeconds: readInt(env, 'PROCESS_TIMEOUT_SECONDS', 180, 30, 900),
     processConcurrency: readInt(env, 'PROCESS_CONCURRENCY', 1, 1, 8),
     downloadConcurrency: readInt(env, 'DOWNLOAD_CONCURRENCY', 2, 1, 8),

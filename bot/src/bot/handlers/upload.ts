@@ -13,6 +13,7 @@ import type { BotDeps } from '../types.js';
 import { oversizedPdfKeyboard, oversizedPdfText } from '../compression.js';
 import { ensureMembership } from '../membership-view.js';
 import { editOrReply } from '../ui.js';
+import { cleanupMergeSession, handleMergeDocument } from './merge.js';
 import { showHome } from './user.js';
 
 function uploadPromptKeyboard(): InlineKeyboard {
@@ -50,7 +51,15 @@ async function replyFileError(ctx: Context, error: unknown, deps: BotDeps): Prom
 }
 
 export function registerUploadHandlers(bot: Bot, deps: BotDeps): void {
-  const { config, logger, fileQueue, uploadSessions, uploadRateLimiter, jobRunner } = deps;
+  const {
+    config,
+    logger,
+    fileQueue,
+    uploadSessions,
+    mergeSessions,
+    uploadRateLimiter,
+    jobRunner,
+  } = deps;
   const maxBytes = config.maxUploadMb * 1024 * 1024;
   const maxOutputBytes = config.maxOutputMb * 1024 * 1024;
   const reserveBytes = config.minFreeDiskMb * 1024 * 1024;
@@ -58,6 +67,19 @@ export function registerUploadHandlers(bot: Bot, deps: BotDeps): void {
   async function startUpload(ctx: Context): Promise<void> {
     if (!ctx.from) return;
     if (!(await ensureMembership(ctx, deps))) return;
+
+    if (mergeSessions.get(ctx.from.id)) {
+      await editOrReply(
+        ctx,
+        [
+          '📎 You have a merge in progress.',
+          '',
+          'Tap Finish Uploading or Cancel in that merge before starting a single-file job.',
+        ].join('\n'),
+        new InlineKeyboard().text('Open merge', 'tool:merge').row().text('Cancel merge', 'merge:cancel'),
+      );
+      return;
+    }
 
     if (jobRunner.isActive(ctx.from.id)) {
       await editOrReply(
@@ -89,8 +111,16 @@ export function registerUploadHandlers(bot: Bot, deps: BotDeps): void {
     if (!ctx.from) return;
 
     uploadSessions.clear(ctx.from.id);
+    const merge = mergeSessions.clear(ctx.from.id);
+    if (merge) {
+      await cleanupMergeSession(merge, logger);
+    }
     if (jobRunner.cancel(ctx.from.id)) {
       await ctx.reply('Cancelling the current PDF. Temporary files will be removed.');
+      return;
+    }
+    if (merge) {
+      await ctx.reply('Merge cancelled. Temporary files were removed.');
       return;
     }
     await showHome(ctx, deps);
@@ -100,8 +130,17 @@ export function registerUploadHandlers(bot: Bot, deps: BotDeps): void {
     if (!ctx.from) return;
 
     uploadSessions.clear(ctx.from.id);
+    const merge = mergeSessions.clear(ctx.from.id);
+    if (merge) {
+      await cleanupMergeSession(merge, logger);
+    }
+
     if (jobRunner.cancel(ctx.from.id)) {
       await ctx.reply('Cancelling the current PDF. Temporary files will be removed.');
+      return;
+    }
+    if (merge) {
+      await ctx.reply('Merge cancelled. Temporary files were removed.');
       return;
     }
     await ctx.reply('Nothing to cancel.');
@@ -112,6 +151,8 @@ export function registerUploadHandlers(bot: Bot, deps: BotDeps): void {
 
     const userId = ctx.from.id;
     const chatId = ctx.chat.id;
+
+    if (await handleMergeDocument(ctx, bot, deps)) return;
 
     if (!uploadSessions.isActive(userId)) {
       await ctx.reply(

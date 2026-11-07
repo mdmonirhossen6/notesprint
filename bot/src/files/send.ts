@@ -1,6 +1,6 @@
 import { stat } from 'node:fs/promises';
 import { InputFile } from 'grammy';
-import type { Api } from 'grammy';
+import type { Api, InlineKeyboard } from 'grammy';
 import { FileHandlingError } from './errors.js';
 
 export interface SendDocumentOptions {
@@ -10,6 +10,7 @@ export interface SendDocumentOptions {
   maxBytes: number;
   fileName?: string | undefined;
   caption?: string | undefined;
+  replyMarkup?: InlineKeyboard | undefined;
 }
 
 export interface SendDocumentResult {
@@ -31,8 +32,9 @@ export async function sendDocumentFromPath(
     throw new FileHandlingError('too_large', 'Output file exceeds the maximum allowed size');
   }
 
-  const other: { caption?: string } = {};
+  const other: { caption?: string; reply_markup?: InlineKeyboard } = {};
   if (options.caption) other.caption = options.caption;
+  if (options.replyMarkup) other.reply_markup = options.replyMarkup;
 
   await options.api.sendDocument(
     options.chatId,

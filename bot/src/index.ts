@@ -2,14 +2,16 @@ import type { Server } from 'node:http';
 import { loadConfig } from './config.js';
 import { createLogger } from './logger.js';
 import { createBot } from './bot/create-bot.js';
-import { cleanupExpiredFiles, ensureDirectory } from './files/paths.js';
+import { cleanupExpiredFiles, cleanupFile, ensureDirectory } from './files/paths.js';
 import { createTaskQueue } from './files/queue.js';
 import { createRateLimiter } from './files/rate-limit.js';
 import { createUploadSessionStore } from './files/upload-session.js';
+import { createMergeSessionStore } from './files/merge-session.js';
 import { createJobRunner } from './jobs/runner.js';
 import { startHttpServer } from './server.js';
 
 const UPLOAD_SESSION_TTL_MS = 15 * 60 * 1000;
+const MERGE_SESSION_TTL_MS = 30 * 60 * 1000;
 const MAINTENANCE_INTERVAL_MS = 5 * 60 * 1000;
 const SHUTDOWN_DRAIN_MS = 20_000;
 
@@ -24,6 +26,7 @@ async function main(): Promise<void> {
     onTaskError: (error) => logger.error('file_task_failed', {}, error),
   });
   const uploadSessions = createUploadSessionStore({ ttlMs: UPLOAD_SESSION_TTL_MS });
+  const mergeSessions = createMergeSessionStore({ ttlMs: MERGE_SESSION_TTL_MS });
   const uploadRateLimiter = createRateLimiter({
     limit: config.uploadRateLimitCount,
     windowMs: config.uploadRateLimitWindowMinutes * 60 * 1000,
@@ -37,9 +40,27 @@ async function main(): Promise<void> {
         config.tempFileTtlMinutes * 60 * 1000,
       );
       const expiredSessions = uploadSessions.prune();
+      const expiredMerges = mergeSessions.prune();
+      for (const session of expiredMerges) {
+        for (const file of session.files) {
+          await cleanupFile(file.path).catch((error: unknown) => {
+            logger.warn('temp_cleanup_failed', { userId: session.userId }, error);
+          });
+        }
+      }
       const prunedLimiters = uploadRateLimiter.prune();
-      if (removedFiles > 0 || expiredSessions > 0 || prunedLimiters > 0) {
-        logger.info('temp_cleanup', { removedFiles, expiredSessions, prunedLimiters });
+      if (
+        removedFiles > 0 ||
+        expiredSessions > 0 ||
+        expiredMerges.length > 0 ||
+        prunedLimiters > 0
+      ) {
+        logger.info('temp_cleanup', {
+          removedFiles,
+          expiredSessions,
+          expiredMergeSessions: expiredMerges.length,
+          prunedLimiters,
+        });
       }
     } catch (error) {
       logger.warn('temp_cleanup_failed', {}, error);
@@ -55,6 +76,7 @@ async function main(): Promise<void> {
     logger,
     fileQueue,
     uploadSessions,
+    mergeSessions,
     uploadRateLimiter,
     jobRunner,
   });
@@ -67,6 +89,8 @@ async function main(): Promise<void> {
     maxUploadMb: config.maxUploadMb,
     maxOutputMb: config.maxOutputMb,
     maxPdfPages: config.maxPdfPages,
+    mergeMaxFiles: config.mergeMaxFiles,
+    mergeMaxTotalMb: config.mergeMaxTotalMb,
     tmpDir: config.tmpDir,
   });
 

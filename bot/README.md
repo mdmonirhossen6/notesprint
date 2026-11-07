@@ -5,12 +5,12 @@ root; this folder is a separate Node.js service designed for **Render Free Web S
 
 The active runtime is **stateless**:
 
-1. The user sends a PDF as a document.
-2. The bot validates the MIME type and declared size (max **19 MiB**).
-3. The file is streamed to a unique file in `/tmp`.
-4. `pdf-lib` loads, validates, and re-saves the PDF to a temporary output.
+1. The user picks **Process PDF** (single file) or **Merge PDFs** (2-10 files in order).
+2. The bot validates the MIME type and declared size (max **19 MiB**) per file.
+3. Each file is streamed to a unique file in `/tmp`.
+4. `pdf-lib` loads, validates, and processes the PDFs without rasterising them.
 5. The result is sent back to the same Telegram chat (max **49 MB**).
-6. The input and output files are deleted in a `finally` block on every path.
+6. All input and output files are deleted in a `finally` block on every path.
 7. A maintenance sweep removes abandoned temp files and expired in-memory state.
 
 Nothing is archived. No file is sent to R2, Supabase, or any other storage provider. The
@@ -25,23 +25,52 @@ service keeps no database and no persistent user history.
   static channel list.
 - PDF24 compression guidance for files above the limit. The button opens an external
   service; the bot never uploads anything to it.
+- **Merge PDFs**: send 2-10 documents one at a time, then tap **Finish Uploading**. Files
+  are merged in the order they were received, page sizes are preserved, and the result is
+  a single vector PDF. Per-file 19 MiB, combined 40 MB, 300 pages, 49 MB output.
 - Streaming download with a hard byte limit, transfer timeout, `%PDF-` header check,
   and real-size re-check.
 - One PDF job at a time (`PROCESS_CONCURRENCY=1`) and one job per user, with `/cancel`
   and timeout support.
 - Duplicate-processing prevention: a second upload while a job is active is rejected.
+- Merge sessions live in memory for 30 minutes, use their own cancellation signal, and
+  are pruned with their temp files by the maintenance sweep.
 - Temp cleanup on success, failure, cancellation, timeout, startup, and every five
   minutes.
 - Health endpoint at `/healthz` that does not depend on any external service.
-- Tests for config, membership, jobs, PDF validation, UI, and limits.
+- Tests for config, membership, jobs, PDF validation, merge order/limits, UI, and limits.
 
 ## Current processing behaviour
 
-The initial server-side processor uses `pdf-lib` to load and re-save the PDF with object
-streams. It validates the file, enforces the page cap, and produces a clean PDF copy. It
-does not do OCR, handwriting cleanup, N-up imposition, merging, or enhancement yet; those
-tool buttons show an honest placeholder. The point of this version is a complete, safe,
-stateless delivery loop on free hosting.
+`Process PDF` loads the file with `pdf-lib`, validates it, enforces the page cap, and
+returns a clean re-saved copy. `Merge PDFs` copies every page from each input into one
+new document in receipt order; it never rasterises, so quality and page sizes are
+preserved.
+
+Implemented server-side operations:
+
+| Operation | Status |
+|---|---|
+| Process / validate / re-save | Live |
+| Merge PDFs (2-10 files, ordered) | Live |
+| Split, page selection, reorder, rotate | Not implemented |
+| Grayscale, black & white, invert | Not implemented |
+| N-up, paper size, orientation | Not implemented |
+| Enhance / filters | Not implemented |
+
+The unimplemented operations are not shown in the menu. See
+[`docs/website-feature-audit.md`](docs/website-feature-audit.md) for the website
+inventory: the website's filters, split, and N-up features run in the browser through a
+pdf.js canvas and cannot be imported into this Node service as-is. They need separate
+vector implementations before they can be exposed here.
+
+## Performance notes
+
+A local run merging 5 generated PDFs (40 pages each, 200 pages total, 275 KB of input)
+took **166 ms** and kept the process around **224 MB RSS** including the test loader.
+Those are vector PDFs; large scanned PDFs near the 19 MiB limit were not benchmarked
+locally, and Render Free's 0.1 CPU is slower than a development machine. Treat the free
+instance as suitable for small and moderate documents, not as a large-file processor.
 
 ## Render deployment
 
@@ -86,6 +115,8 @@ Set these in **Dashboard → Environment**. Only `BOT_TOKEN` is secret.
 | `MAX_UPLOAD_MB` | no | `19` (maximum allowed: 20) |
 | `MAX_OUTPUT_MB` | no | `49` (maximum allowed: 49) |
 | `MAX_PDF_PAGES` | no | `300` |
+| `MERGE_MAX_FILES` | no | `10` (range 2-20) |
+| `MERGE_MAX_TOTAL_MB` | no | `40` (range 2-49) |
 | `PROCESS_TIMEOUT_SECONDS` | no | `180` |
 | `FILE_TRANSFER_TIMEOUT_SECONDS` | no | `120` |
 | `TEMP_FILE_TTL_MINUTES` | no | `60` |
@@ -124,8 +155,9 @@ curl -s https://<service-name>.onrender.com/healthz
 Expected: `{"ok":true,"version":"...","uptimeSeconds":...}`.
 
 In Telegram: send `/start`, join the required channels, tap **Verify Membership**, then
-tap **Process PDF** and send a PDF as a document. A successful run replies with the
-processed file and the temporary copies are deleted.
+tap **Process PDF** and send a PDF as a document. For merging, tap **Merge PDFs**, send
+2 or more PDFs in order, tap **Finish Uploading**, and confirm the returned page count.
+A successful run deletes every temporary copy.
 
 ## Render free-plan limitations
 
@@ -164,6 +196,8 @@ need an HTTPS tunnel and `BOT_MODE=webhook`.
 
 ## How a job runs
 
+Single-file Process:
+
 ```
 user document
   -> membership + duplicate-job check
@@ -180,9 +214,29 @@ user document
   -> delete input + output in finally
 ```
 
+Merge:
+
+```
+tap Merge PDFs
+  -> membership + duplicate-job check
+  -> in-memory merge session (30 min TTL)
+each document
+  -> membership + per-file size + disk + rate limit
+  -> reserve slot, download to /tmp, count pages
+  -> commit in Telegram message order
+  -> reject a file that pushes combined size or pages over the cap
+tap Finish Uploading
+  -> need 2+ files, no pending download, combined <= 40 MB
+  -> job runner reserves the user, session files are detached
+  -> queue (concurrency 1)
+  -> pdf-lib copyPages in order, save one PDF
+  -> sendDocument from disk
+  -> delete every input + output in finally
+```
+
 Failures map to clear replies: file too large, not a PDF, damaged or password-protected
-PDF, too many pages, timeout, cancelled, disk space, or Telegram transfer failure. Temp
-files are removed on all of them.
+PDF, too many pages, too many files, combined size limit, timeout, cancelled, disk space,
+or Telegram transfer failure. Temp files are removed on all of them.
 
 ## Security rules
 

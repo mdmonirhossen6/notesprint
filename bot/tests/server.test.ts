@@ -29,6 +29,8 @@ function testConfig(): AppConfig {
     maxUploadMb: 19,
     maxOutputMb: 49,
     maxPdfPages: 300,
+    mergeMaxFiles: 10,
+    mergeMaxTotalMb: 40,
     processTimeoutSeconds: 180,
     processConcurrency: 1,
     downloadConcurrency: 2,
