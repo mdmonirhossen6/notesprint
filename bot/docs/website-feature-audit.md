@@ -1,4 +1,4 @@
-# Website PDF feature audit (Phase 4 input)
+# Website PDF feature audit (v0.6.0 migration)
 
 Source: the Next.js app in the repository root. Audit date: 2026-11-07.
 
@@ -33,21 +33,21 @@ Consequences:
 | 2 | File reorder | `Step2Reorder.tsx`, `reorderFiles` | Yes (files only, not pages) | Logic idea only | Order by Telegram message ID, or accept an explicit order |
 | 3 | "Merge" output | `Step2` + `Step6` + `pdfExport.generateFinalPDF` | Yes, but implicit: all pages are rasterized into one PDF | No (browser canvas) | **Implemented in the bot with `pdf-lib.copyPages` — vector, no rasterization** |
 | 4 | Page thumbnails | `pdfProcessing.extractPDFPages` | Yes | No | Not needed for the bot flow |
-| 5 | Page selection (keep/remove) | `Step3Preview.tsx` | Yes | Selection concept | Future: page-range parser + `copyPages` |
-| 6 | Page reorder | None. Page order always follows file order then page number | No page-level reorder | — | Future: explicit index list |
-| 7 | Split PDF / extract pages | None | No such tool | — | Future: `copyPages` per range |
-| 8 | Rotate pages | None | No such tool | — | Future: `page.setRotation` |
-| 9 | Grayscale | `imageFilters.ts` (Rec.601 weights) | Yes, in browser | Filter math only | Needs rasterization (`pdfjs-dist` + Node canvas/sharp); heavy on Render Free |
-| 10 | Black & White | `imageFilters.ts`, fixed threshold 128 | Yes, in browser; **no threshold UI** | Threshold math only | Rasterization + a user-selectable threshold |
-| 11 | Invert colors | `imageFilters.ts` | Yes | Math only | Rasterization |
-| 12 | Clear background | `imageFilters.ts`, fixed threshold 200 | Yes (simple near-white clamp) | Math only | Rasterization; threshold must be exposed |
-| 13 | Remove logo / crop | `Step4Enhance.tsx` disabled control | **No** (UI is dimmed and non-interactive) | No | Not a real feature; do not expose |
-| 14 | N-up / multiple slides | `pdfExport.ts` layout loop; `Step5Layout.tsx` rows/cols 1-4 | Yes, browser-rendered | Layout math concept | Feasible vector-side with `pdf-lib.embedPage`; raster needed only with filters |
-| 15 | Paper size | `pdfExport.ts` (`a3`, `a4`, `a5`, `letter`, `legal`, `original`) | Yes for N-up output | Size table | Reuse the same point sizes |
-| 16 | Orientation | `pdfExport.ts` + `Step5Layout.tsx` | Only when a fixed paper size is selected | Logic | Reuse; portrait/landscape swaps width/height |
-| 17 | Output quality (low/medium/high) | `pdfExport.ts` scale 1.0/1.8/2.5, JPEG 0.6/0.8/0.92 | Yes | Mapping only | Only meaningful for raster filters; not for vector merge |
-| 18 | Separation lines | `pdfExport.ts` draws grey lines | Yes | Drawing code idea | Optional layout feature |
-| 19 | Page numbers | `pdfExport.ts` draws Helvetica text | Yes | Drawing code idea | Optional layout feature |
+| 5 | Page selection (keep/remove) | `Step3Preview.tsx` | Yes | Selection concept | **Implemented in bot**: page-range parser + `copyPages` |
+| 6 | Page reorder | None. Page order always follows file order then page number | No page-level reorder | — | **Implemented in bot**: explicit full-page order |
+| 7 | Split PDF / extract pages | None | No such tool | — | **Implemented in bot**: extract, every page, equal groups, ZIP |
+| 8 | Rotate pages | None | No such tool | — | **Implemented in bot**: `page.setRotation`, all or selected |
+| 9 | Grayscale | `imageFilters.ts` (Rec.601 weights) | Yes, in browser | Filter math only | **Implemented in bot**: pdfjs + canvas + Sharp, sequential |
+| 10 | Black & White | `imageFilters.ts`, fixed threshold 128 | Yes, in browser; **no threshold UI** | Threshold math only | **Implemented in bot**: three threshold presets |
+| 11 | Invert colors | `imageFilters.ts` | Yes | Math only | **Implemented in bot**: raster + JPEG |
+| 12 | Clear background | `imageFilters.ts`, fixed threshold 200 | Yes (simple near-white clamp) | Math only | **Implemented in bot**: low/medium/high cleanup levels |
+| 13 | Remove logo / crop | `Step4Enhance.tsx` disabled control | **No** (UI is dimmed and non-interactive) | No | Not a real feature; not exposed |
+| 14 | N-up / multiple slides | `pdfExport.ts` layout loop; `Step5Layout.tsx` rows/cols 1-4 | Yes, browser-rendered | Layout math concept | **Implemented in bot**: 2/4/6/9 vector N-up |
+| 15 | Paper size | `pdfExport.ts` (`a3`, `a4`, `a5`, `letter`, `legal`, `original`) | Yes for N-up output | Size table | **Implemented in bot**: A4/A3/A5/Letter/Legal |
+| 16 | Orientation | `pdfExport.ts` + `Step5Layout.tsx` | Only when a fixed paper size is selected | Logic | **Implemented in bot**: portrait/landscape/auto |
+| 17 | Output quality (low/medium/high) | `pdfExport.ts` scale 1.0/1.8/2.5, JPEG 0.6/0.8/0.92 | Yes | Mapping only | **Implemented for raster tools**: 100/150/200 DPI with measured caps |
+| 18 | Separation lines | `pdfExport.ts` draws grey lines | Yes | Drawing code idea | **Implemented in bot N-up** |
+| 19 | Page numbers | `pdfExport.ts` draws Helvetica text | Yes | Drawing code idea | **Implemented in bot N-up**: start, position, size |
 | 20 | Live filter preview | `Step4Enhance.tsx` | Yes | No | Not applicable to Telegram |
 | 21 | Quick tools grid | `src/app/page.tsx`, `src/app/tools/page.tsx` | Navigation only; all cards open `/process` | No | Menu entries only for tested operations |
 | 22 | Settings defaults | `useSettingsStore.ts`, `settings/page.tsx` | Yes, persisted in localStorage | Defaults idea | Bot uses env/config; no persistence |
@@ -62,16 +62,27 @@ Consequences:
 - N-up and page selection can be vector operations with `pdf-lib`; filters cannot. A
   filter feature needs a rasterization dependency and a strict page cap on Render Free
   (512 MB RAM, 0.1 CPU). It must be benchmarked before being exposed.
-- The website has no split, rotate, or standalone page-reorder workflow. Those would be
+- The website has no split, rotate, or standalone page-reorder workflow. Those are
   new server-side implementations, not migrations.
 
-## Phase 4 progress tracker
+## Bot v0.6.0 migration status
 
 | Operation | Status |
 |---|---|
-| Merge PDF | Implemented and tested with `pdf-lib` (order-preserving, vector) |
-| Process PDF (validate/re-save) | Already live |
-| Split, page selection, reorder, rotate | Not started |
-| Grayscale, Black & White, filters | Not started (needs rasterization benchmark) |
-| N-up, paper size, orientation | Not started (vector approach planned) |
-| Enhance | Not started; website has no real enhancement beyond filters |
+| Process PDF (validate/re-save) | Live |
+| Merge PDF (2-10 files, ordered) | Live, vector, `pdf-lib` |
+| Split (extract, every page, equal groups, ZIP) | Live, vector, tested |
+| Page selection (keep / remove) | Live, vector, tested |
+| Page reorder (explicit full order) | Live, vector, tested |
+| Rotate 90/180/270, all or selected | Live, vector, tested |
+| Grayscale / Invert / Clear Background | Live, sequential raster, pixel-tested |
+| Black & White, three thresholds | Live, sequential raster, pixel-tested |
+| N-up 2/4/6/9, paper, orientation, margins, gaps, separators, page numbers | Live, vector, dimension/order tested |
+| Enhance / OCR / logo removal | Not implemented; not exposed |
+
+Raster limits are quality-dependent because peak memory was measured rather than
+guessed. With `--max-semi-space-size=2` and a 12-page 10.3 MiB image-heavy fixture, peak
+RSS was 382-428 MB for the four filters on a local machine. Render Free has 512 MB and
+0.1 CPU, so B&W is capped at 8 high-DPI pages (12 medium, 20 low); the JPEG filters are
+capped at 12/20/30 pages. See the bot `README.md` for the full benchmark tables. Render
+timings under 0.1 CPU were not measured and should be expected to be much slower.

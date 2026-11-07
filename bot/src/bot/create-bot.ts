@@ -7,12 +7,14 @@ import type { TaskQueue } from '../files/queue.js';
 import type { RateLimiter } from '../files/rate-limit.js';
 import type { UploadSessionStore } from '../files/upload-session.js';
 import type { MergeSessionStore } from '../files/merge-session.js';
+import type { ToolSessionStore } from '../files/tool-session.js';
 import type { JobRunner } from '../jobs/runner.js';
 import type { BotDeps } from './types.js';
 import { attachErrorHandler } from './ui.js';
 import { registerUserHandlers } from './handlers/user.js';
 import { registerMergeHandlers } from './handlers/merge.js';
 import { registerUploadHandlers } from './handlers/upload.js';
+import { registerToolHandlers } from './handlers/tools.js';
 import { registerAdminHandlers } from './handlers/admin.js';
 
 export interface BotDependencies {
@@ -21,6 +23,7 @@ export interface BotDependencies {
   fileQueue: TaskQueue;
   uploadSessions: UploadSessionStore;
   mergeSessions: MergeSessionStore;
+  toolSessions: ToolSessionStore;
   uploadRateLimiter: RateLimiter;
   jobRunner: JobRunner;
 }
@@ -32,6 +35,7 @@ export function createBot(dependencies: BotDependencies): Bot {
     fileQueue,
     uploadSessions,
     mergeSessions,
+    toolSessions,
     uploadRateLimiter,
     jobRunner,
   } = dependencies;
@@ -62,6 +66,7 @@ export function createBot(dependencies: BotDependencies): Bot {
     fileQueue,
     uploadSessions,
     mergeSessions,
+    toolSessions,
     uploadRateLimiter,
     jobRunner,
   };
@@ -69,6 +74,7 @@ export function createBot(dependencies: BotDependencies): Bot {
   registerUserHandlers(bot, deps);
   registerMergeHandlers(bot, deps);
   registerUploadHandlers(bot, deps);
+  registerToolHandlers(bot, deps);
   registerAdminHandlers(bot, deps);
 
   attachErrorHandler(bot, logger);

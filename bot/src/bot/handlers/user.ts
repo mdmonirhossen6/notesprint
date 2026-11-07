@@ -36,7 +36,12 @@ function backKeyboard(): InlineKeyboard {
 function showHelp(ctx: Context, deps: BotDeps): Promise<void> {
   return editOrReply(
     ctx,
-    helpText(deps.config.maxUploadMb, deps.config.maxOutputMb, deps.config.mergeMaxFiles),
+    helpText(
+      deps.config.maxUploadMb,
+      deps.config.maxOutputMb,
+      deps.config.mergeMaxFiles,
+      deps.config.rasterMaxPages,
+    ),
     helpKeyboard(),
   );
 }

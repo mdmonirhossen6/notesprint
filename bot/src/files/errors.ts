@@ -13,6 +13,9 @@ export type FileErrorCode =
   | 'too_few_files'
   | 'too_many_files'
   | 'total_too_large'
+  | 'invalid_range'
+  | 'empty_selection'
+  | 'raster_page_limit'
   | 'cancelled';
 
 export class FileHandlingError extends Error {
@@ -61,6 +64,12 @@ export function userMessageForFileError(error: unknown, maxUploadMb?: number): s
       return 'Too many PDFs for one merge. Remove some and try again.';
     case 'total_too_large':
       return 'The combined PDFs are larger than the merge limit.';
+    case 'invalid_range':
+      return error.message || 'That page range is not valid.';
+    case 'empty_selection':
+      return error.message || 'Select at least one page.';
+    case 'raster_page_limit':
+      return error.message || 'This PDF has too many pages for a color operation.';
     case 'cancelled':
       return 'Processing was cancelled.';
   }

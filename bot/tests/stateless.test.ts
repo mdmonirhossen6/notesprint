@@ -47,6 +47,8 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
     maxPdfPages: 300,
     mergeMaxFiles: 10,
     mergeMaxTotalMb: 40,
+    rasterMaxPages: 30,
+    rasterMaxPixelsPerPage: 4000000,
     processTimeoutSeconds: 180,
     processConcurrency: 1,
     downloadConcurrency: 2,

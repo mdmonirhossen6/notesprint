@@ -1,13 +1,27 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, readdir, stat, unlink } from 'node:fs/promises';
+import { mkdir, readdir, rm, stat, unlink } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 
 export async function ensureDirectory(dirPath: string): Promise<void> {
   await mkdir(dirPath, { recursive: true });
 }
 
+export function createTempPath(tmpDir: string, extension: string): string {
+  return resolve(tmpDir, `${randomBytes(16).toString('hex')}${extension}`);
+}
+
 export function createTempPdfPath(tmpDir: string): string {
-  return resolve(tmpDir, `${randomBytes(16).toString('hex')}.pdf`);
+  return createTempPath(tmpDir, '.pdf');
+}
+
+export async function createTempWorkDir(tmpDir: string): Promise<string> {
+  const dir = resolve(tmpDir, `work-${randomBytes(12).toString('hex')}`);
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  return dir;
+}
+
+export async function cleanupDirectory(dirPath: string): Promise<void> {
+  await rm(dirPath, { recursive: true, force: true });
 }
 
 export function isPathInside(root: string, candidate: string): boolean {

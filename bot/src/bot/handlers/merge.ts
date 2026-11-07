@@ -15,6 +15,7 @@ import type { BotDeps } from '../types.js';
 import { oversizedPdfKeyboard, oversizedPdfText } from '../compression.js';
 import { ensureMembership } from '../membership-view.js';
 import { editOrReply } from '../ui.js';
+import { cleanupToolSession } from './tools.js';
 import { showHome } from './user.js';
 
 function mergeKeyboard(): InlineKeyboard {
@@ -80,6 +81,9 @@ async function startMerge(ctx: Context, deps: BotDeps): Promise<void> {
     );
     return;
   }
+
+  const tool = deps.toolSessions.clear(ctx.from.id);
+  if (tool) await cleanupToolSession(tool, deps.logger);
 
   const existing = deps.mergeSessions.get(ctx.from.id);
   if (existing) {

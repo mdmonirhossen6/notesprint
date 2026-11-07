@@ -5,6 +5,7 @@ import type { TaskQueue } from '../files/queue.js';
 import type { RateLimiter } from '../files/rate-limit.js';
 import type { UploadSessionStore } from '../files/upload-session.js';
 import type { MergeSessionStore } from '../files/merge-session.js';
+import type { ToolSessionStore } from '../files/tool-session.js';
 import type { JobRunner } from '../jobs/runner.js';
 
 export interface BotDeps {
@@ -14,6 +15,7 @@ export interface BotDeps {
   fileQueue: TaskQueue;
   uploadSessions: UploadSessionStore;
   mergeSessions: MergeSessionStore;
+  toolSessions: ToolSessionStore;
   uploadRateLimiter: RateLimiter;
   jobRunner: JobRunner;
 }

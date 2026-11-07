@@ -19,6 +19,7 @@ function adminHomeText(deps: BotDeps): string {
     `Active PDF jobs: ${deps.jobRunner.activeCount()}`,
     `Queued jobs: ${deps.fileQueue.pending}`,
     `Active merge sessions: ${deps.mergeSessions.activeCount()}`,
+    `Active tool sessions: ${deps.toolSessions.activeCount()}`,
     '',
     'This is a stateless deployment.',
     'Required channels come from REQUIRED_CHANNELS and settings do not persist across restarts.',

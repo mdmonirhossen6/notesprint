@@ -35,6 +35,8 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
     maxPdfPages: 300,
     mergeMaxFiles: 10,
     mergeMaxTotalMb: 40,
+    rasterMaxPages: 30,
+    rasterMaxPixelsPerPage: 4000000,
     processTimeoutSeconds: 180,
     processConcurrency: 1,
     downloadConcurrency: 2,
@@ -305,12 +307,17 @@ test('merge session prune returns expired sessions and aborts their controllers'
   assert.equal(store.activeCount(), 0);
 });
 
-test('menu exposes merge but no unimplemented placeholders', () => {
+test('menu exposes implemented tools but no unimplemented placeholders', () => {
   const buttons = mainMenuKeyboard(config(), false).inline_keyboard.flat();
   const labels = buttons.map((button) => button.text);
 
   assert.equal(labels.includes('📎 Merge PDFs'), true);
-  assert.equal(labels.includes('🧾 N-up Layout'), false);
+  assert.equal(labels.includes('✂️ Split PDF'), true);
+  assert.equal(labels.includes('📑 Page Selection'), true);
+  assert.equal(labels.includes('🔀 Page Reorder'), true);
+  assert.equal(labels.includes('🔄 Rotate PDF'), true);
+  assert.equal(labels.includes('🎨 Color Tools'), true);
+  assert.equal(labels.includes('🧾 N-up Layout'), true);
   assert.equal(labels.includes('✨ Enhance PDF'), false);
   assert.equal(labels.includes('Compress PDF'), true);
 

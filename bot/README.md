@@ -5,11 +5,16 @@ root; this folder is a separate Node.js service designed for **Render Free Web S
 
 The active runtime is **stateless**:
 
-1. The user picks **Process PDF** (single file) or **Merge PDFs** (2-10 files in order).
+1. The user picks a tool from the inline menu: Process, Merge, Split, Page Selection,
+   Page Reorder, Rotate, Color Tools (Grayscale / Black & White / Invert / Clear
+   Background), or N-up Layout.
 2. The bot validates the MIME type and declared size (max **19 MiB**) per file.
 3. Each file is streamed to a unique file in `/tmp`.
-4. `pdf-lib` loads, validates, and processes the PDFs without rasterising them.
-5. The result is sent back to the same Telegram chat (max **49 MB**).
+4. Vector tools such as split, page selection, reorder, rotate, merge, and N-up use
+   `pdf-lib` and preserve text and vectors. Color tools render pages sequentially with
+   `pdfjs-dist`, Node canvas, and Sharp.
+5. The result is sent back to the same Telegram chat (max **49 MB**). Multi-file split
+   output is returned as a ZIP.
 6. All input and output files are deleted in a `finally` block on every path.
 7. A maintenance sweep removes abandoned temp files and expired in-memory state.
 
@@ -28,6 +33,18 @@ service keeps no database and no persistent user history.
 - **Merge PDFs**: send 2-10 documents one at a time, then tap **Finish Uploading**. Files
   are merged in the order they were received, page sizes are preserved, and the result is
   a single vector PDF. Per-file 19 MiB, combined 40 MB, 300 pages, 49 MB output.
+- **Split PDF**: extract a page range, split every page into its own PDF, or split into
+  equal groups. Multi-file results are returned as a ZIP.
+- **Page Selection**: keep only the listed pages, or remove them.
+- **Page Reorder**: send an explicit order containing every page exactly once.
+- **Rotate PDF**: 90°, 180°, or 270° clockwise, on all pages or a selected subset, without
+  rasterising.
+- **Color Tools**: Grayscale, Black & White with three threshold presets, Invert, and
+  Clear Background with three cleanup levels. Pages are rendered one at a time at 100,
+  150, or 200 DPI.
+- **N-up Layout**: 2, 4, 6, or 9 pages per sheet on A4, A3, A5, Letter, or Legal paper,
+  portrait, landscape, or auto orientation, with margins, gaps, separator lines, and
+  page numbers (start, position, size). N-up output is vector.
 - Streaming download with a hard byte limit, transfer timeout, `%PDF-` header check,
   and real-size re-check.
 - One PDF job at a time (`PROCESS_CONCURRENCY=1`) and one job per user, with `/cancel`
@@ -35,42 +52,91 @@ service keeps no database and no persistent user history.
 - Duplicate-processing prevention: a second upload while a job is active is rejected.
 - Merge sessions live in memory for 30 minutes, use their own cancellation signal, and
   are pruned with their temp files by the maintenance sweep.
+- Tool sessions live in memory for 30 minutes. Uploading, choosing settings, processing,
+  cancelling, and retrying are all handled by inline buttons; no command syntax is needed.
 - Temp cleanup on success, failure, cancellation, timeout, startup, and every five
   minutes.
 - Health endpoint at `/healthz` that does not depend on any external service.
-- Tests for config, membership, jobs, PDF validation, merge order/limits, UI, and limits.
+- 125 tests covering config, membership, jobs, PDF validation, merge order/limits, page
+  parsing, vector tools, raster pixel output, N-up layout, UI, and resource limits.
 
-## Current processing behaviour
+## Processing behaviour
 
 `Process PDF` loads the file with `pdf-lib`, validates it, enforces the page cap, and
 returns a clean re-saved copy. `Merge PDFs` copies every page from each input into one
-new document in receipt order; it never rasterises, so quality and page sizes are
-preserved.
+new document in receipt order; it never rasterises. Split, page selection, reorder,
+rotate, and N-up also use `pdf-lib`, so text, vectors, and page sizes are preserved.
 
-Implemented server-side operations:
+Color tools are different: each page is rendered with `pdfjs-dist` into a Node canvas,
+filtered, and re-embedded as an image. They are intentionally sequential and have lower
+page caps because they need far more memory than vector operations.
 
-| Operation | Status |
-|---|---|
-| Process / validate / re-save | Live |
-| Merge PDFs (2-10 files, ordered) | Live |
-| Split, page selection, reorder, rotate | Not implemented |
-| Grayscale, black & white, invert | Not implemented |
-| N-up, paper size, orientation | Not implemented |
-| Enhance / filters | Not implemented |
+| Operation | Implementation | Status |
+|---|---|---|
+| Process / validate / re-save | `pdf-lib` | Live |
+| Merge PDFs (2-10 files, ordered) | `pdf-lib.copyPages` | Live |
+| Split (extract, every page, equal groups, ZIP) | `pdf-lib.copyPages` + `yazl` | Live |
+| Page selection (keep / remove) | `pdf-lib.copyPages` | Live |
+| Page reorder (explicit full order) | `pdf-lib.copyPages` | Live |
+| Rotate 90/180/270, all or selected | `pdf-lib` page rotation | Live |
+| Grayscale / invert / clear background | pdfjs + canvas + Sharp | Live |
+| Black & white, 3 thresholds | pdfjs + canvas + Sharp | Live |
+| N-up 2/4/6/9, paper, orientation, margins, gaps, separators, page numbers | `pdf-lib.embedPage` | Live |
+| Enhance / OCR / logo removal | — | Not implemented; no button exposed |
 
-The unimplemented operations are not shown in the menu. See
-[`docs/website-feature-audit.md`](docs/website-feature-audit.md) for the website
-inventory: the website's filters, split, and N-up features run in the browser through a
-pdf.js canvas and cannot be imported into this Node service as-is. They need separate
-vector implementations before they can be exposed here.
+Quality caps for raster tools are enforced in the settings panel and again at processing
+time:
+
+| Quality | DPI | Grayscale / Invert / Clear | Black & White |
+|---|---|---|---|
+| Low | 100 | 30 pages | 20 pages |
+| Medium | 150 | 20 pages | 12 pages |
+| High | 200 | 12 pages | 8 pages |
+
+`RASTER_MAX_PAGES` is an additional absolute cap. A PDF above the selected quality's cap
+is rejected before rendering with a message suggesting a lower quality. This is deliberate:
+the caps come from measured peak memory on a 512 MB instance.
 
 ## Performance notes
 
-A local run merging 5 generated PDFs (40 pages each, 200 pages total, 275 KB of input)
-took **166 ms** and kept the process around **224 MB RSS** including the test loader.
-Those are vector PDFs; large scanned PDFs near the 19 MiB limit were not benchmarked
-locally, and Render Free's 0.1 CPU is slower than a development machine. Treat the free
-instance as suitable for small and moderate documents, not as a large-file processor.
+Both benchmarks below use 12 generated pages and run the compiled production build with
+`--max-semi-space-size=2`. Peak RSS is from `process.resourceUsage().maxRSS` in a separate
+child process per operation. Run `npm run benchmark` and
+`BENCH_IMAGE=1 npm run benchmark` to reproduce them.
+
+Vector fixture (13 KiB input):
+
+| Operation | Duration | Peak RSS | Output |
+|---|---|---|---|
+| Split every page | 67 ms | 97 MB | 21 KiB ZIP |
+| Page selection | 22 ms | 90 MB | 7 KiB PDF |
+| Reorder | 23 ms | 90 MB | 13 KiB PDF |
+| Rotate | 21 ms | 90 MB | 13 KiB PDF |
+| Grayscale 150 DPI | 1.9 s | 331 MB | 1.2 MiB PDF |
+| Black & White 150 DPI | 3.7 s | 386 MB | 150 KiB PDF |
+| Invert 150 DPI | 1.9 s | 330 MB | 1.3 MiB PDF |
+| Clear background 150 DPI | 2.0 s | 339 MB | 1.2 MiB PDF |
+| N-up 4-in-1 | 58 ms | 97 MB | 29 KiB PDF |
+
+Image-heavy fixture (10.3 MiB, noise-image pages):
+
+| Operation | Duration | Peak RSS | Output |
+|---|---|---|---|
+| Split every page | 408 ms | 124 MB | 10.3 MiB ZIP |
+| Page selection | 42 ms | 104 MB | 5.2 MiB PDF |
+| Reorder | 49 ms | 109 MB | 10.3 MiB PDF |
+| Rotate | 56 ms | 110 MB | 10.3 MiB PDF |
+| Grayscale 150 DPI | 6.2 s | 392 MB | 10.1 MiB PDF |
+| Black & White 150 DPI | 10.7 s | 428 MB | 4.2 MiB PDF |
+| Invert 150 DPI | 5.9 s | 391 MB | 11.7 MiB PDF |
+| Clear background 150 DPI | 5.8 s | 382 MB | 11.7 MiB PDF |
+| N-up 4-in-1 | 84 ms | 116 MB | 10.3 MiB PDF |
+
+These are local Windows timings on a development machine, not Render measurements.
+Render Free's 0.1 CPU is substantially slower, so expect raster jobs to take much longer
+there. A 20-page image-heavy PDF is near the memory ceiling even with the caps, which is
+why the B&W quality caps are strict. Jobs are processed one at a time to keep the peak
+bounded.
 
 ## Render deployment
 
@@ -92,9 +158,11 @@ In Render: **New → Web Service → connect the repository**, then set:
 | Health Check Path | `/healthz` |
 | Instance Type | Free |
 
-`npm run start:prod` runs `node dist/src/index.js`. Render provides `PORT`
-automatically; do not hardcode it in production. `bot/.node-version` pins Node 22, which
-satisfies the `engines` requirement in `package.json`.
+`npm run start:prod` runs `node --max-semi-space-size=2 dist/src/index.js`. Render
+provides `PORT` automatically; do not hardcode it in production. `bot/.node-version`
+pins Node 22, which satisfies the `engines` requirement in `package.json`. The smaller
+semi-space keeps the raster peak around the measured values; it is not a general heap
+limit, so vector PDFs are not artificially constrained.
 
 ### 3. Environment variables
 
@@ -115,6 +183,8 @@ Set these in **Dashboard → Environment**. Only `BOT_TOKEN` is secret.
 | `MAX_UPLOAD_MB` | no | `19` (maximum allowed: 20) |
 | `MAX_OUTPUT_MB` | no | `49` (maximum allowed: 49) |
 | `MAX_PDF_PAGES` | no | `300` |
+| `RASTER_MAX_PAGES` | no | `30` (absolute; quality caps still apply) |
+| `RASTER_MAX_PIXELS_PER_PAGE` | no | `4000000` |
 | `MERGE_MAX_FILES` | no | `10` (range 2-20) |
 | `MERGE_MAX_TOTAL_MB` | no | `40` (range 2-49) |
 | `PROCESS_TIMEOUT_SECONDS` | no | `180` |
@@ -157,7 +227,10 @@ Expected: `{"ok":true,"version":"...","uptimeSeconds":...}`.
 In Telegram: send `/start`, join the required channels, tap **Verify Membership**, then
 tap **Process PDF** and send a PDF as a document. For merging, tap **Merge PDFs**, send
 2 or more PDFs in order, tap **Finish Uploading**, and confirm the returned page count.
-A successful run deletes every temporary copy.
+For the other tools, pick Split, Page Selection, Reorder, Rotate, Color Tools, or N-up,
+send one PDF, choose settings with the inline buttons, and tap **Process**. Color tools
+have quality-dependent page caps shown in the panel. A successful run deletes every
+temporary copy.
 
 ## Render free-plan limitations
 
@@ -234,9 +307,35 @@ tap Finish Uploading
   -> delete every input + output in finally
 ```
 
+Single-file tool (Split, Page Selection, Reorder, Rotate, Color, N-up):
+
+```
+tap a tool
+  -> membership + duplicate-job check
+  -> in-memory tool session (30 min TTL)
+send one document
+  -> membership + metadata + disk + rate limit
+  -> job runner reserves the user, download and count pages
+  -> validate the page cap for the tool and selected quality
+  -> show a settings panel with inline buttons
+choose settings (ranges, order, angle, quality, paper, margins, numbering, ...)
+  -> panel revalidates the selection; Process stays unavailable until ready
+tap Process
+  -> job runner reserves the user, tool session is detached
+  -> queue (concurrency 1)
+  -> pdf-lib vector operation OR sequential pdfjs/canvas/Sharp raster loop
+  -> enforce output size and progress to the chat
+  -> sendDocument or ZIP from disk
+  -> delete input + output in finally
+```
+
+Cancel or Retry is available at every step. A tool session used in one chat cannot be
+continued from another chat, and a second job per user is rejected.
+
 Failures map to clear replies: file too large, not a PDF, damaged or password-protected
-PDF, too many pages, too many files, combined size limit, timeout, cancelled, disk space,
-or Telegram transfer failure. Temp files are removed on all of them.
+PDF, too many pages, raster page cap for the selected quality, too many files, combined
+size limit, invalid page selection, output too large, timeout, cancelled, disk space, or
+Telegram transfer failure. Temp files are removed on all of them.
 
 ## Security rules
 

@@ -14,6 +14,7 @@ import { oversizedPdfKeyboard, oversizedPdfText } from '../compression.js';
 import { ensureMembership } from '../membership-view.js';
 import { editOrReply } from '../ui.js';
 import { cleanupMergeSession, handleMergeDocument } from './merge.js';
+import { cleanupToolSession } from './tools.js';
 import { showHome } from './user.js';
 
 function uploadPromptKeyboard(): InlineKeyboard {
@@ -64,9 +65,16 @@ export function registerUploadHandlers(bot: Bot, deps: BotDeps): void {
   const maxOutputBytes = config.maxOutputMb * 1024 * 1024;
   const reserveBytes = config.minFreeDiskMb * 1024 * 1024;
 
+  async function discardToolSession(userId: number): Promise<void> {
+    const tool = deps.toolSessions.clear(userId);
+    if (tool) await cleanupToolSession(tool, logger);
+  }
+
   async function startUpload(ctx: Context): Promise<void> {
     if (!ctx.from) return;
     if (!(await ensureMembership(ctx, deps))) return;
+
+    await discardToolSession(ctx.from.id);
 
     if (mergeSessions.get(ctx.from.id)) {
       await editOrReply(
@@ -115,6 +123,7 @@ export function registerUploadHandlers(bot: Bot, deps: BotDeps): void {
     if (merge) {
       await cleanupMergeSession(merge, logger);
     }
+    await discardToolSession(ctx.from.id);
     if (jobRunner.cancel(ctx.from.id)) {
       await ctx.reply('Cancelling the current PDF. Temporary files will be removed.');
       return;
@@ -134,6 +143,8 @@ export function registerUploadHandlers(bot: Bot, deps: BotDeps): void {
     if (merge) {
       await cleanupMergeSession(merge, logger);
     }
+    const tool = deps.toolSessions.clear(ctx.from.id);
+    if (tool) await cleanupToolSession(tool, logger);
 
     if (jobRunner.cancel(ctx.from.id)) {
       await ctx.reply('Cancelling the current PDF. Temporary files will be removed.');
@@ -143,16 +154,22 @@ export function registerUploadHandlers(bot: Bot, deps: BotDeps): void {
       await ctx.reply('Merge cancelled. Temporary files were removed.');
       return;
     }
+    if (tool) {
+      await ctx.reply('Tool cancelled. Temporary files were removed.');
+      return;
+    }
     await ctx.reply('Nothing to cancel.');
   });
 
-  bot.on('message:document', async (ctx) => {
+  bot.on('message:document', async (ctx, next) => {
     if (!ctx.from || !ctx.chat) return;
 
     const userId = ctx.from.id;
     const chatId = ctx.chat.id;
 
     if (await handleMergeDocument(ctx, bot, deps)) return;
+
+    if (deps.toolSessions.get(userId)) return next();
 
     if (!uploadSessions.isActive(userId)) {
       await ctx.reply(

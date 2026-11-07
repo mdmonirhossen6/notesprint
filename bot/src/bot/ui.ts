@@ -13,7 +13,8 @@ export function mainMenuText(firstName?: string): string {
     '',
     `${greeting} Pick a tool below — everything stays inside Telegram.`,
     '',
-    'Process one PDF or merge several PDFs. Files are deleted immediately after delivery.',
+    'Process, merge, split, select, reorder, rotate, color, and N-up PDFs.',
+    'Files are deleted immediately after delivery.',
   ].join('\n');
 }
 
@@ -21,6 +22,15 @@ export function mainMenuKeyboard(config: AppConfig, admin: boolean): InlineKeybo
   const keyboard = new InlineKeyboard()
     .text('🧩 Process PDF', 'tool:process')
     .text('📎 Merge PDFs', 'tool:merge')
+    .row()
+    .text('✂️ Split PDF', 'tool:split')
+    .text('📑 Page Selection', 'tool:select')
+    .row()
+    .text('🔀 Page Reorder', 'tool:reorder')
+    .text('🔄 Rotate PDF', 'tool:rotate')
+    .row()
+    .text('🎨 Color Tools', 'tool:colors')
+    .text('🧾 N-up Layout', 'tool:nup')
     .row()
     .url('Compress PDF', COMPRESSION_URL)
     .row()
@@ -36,25 +46,55 @@ export function mainMenuKeyboard(config: AppConfig, admin: boolean): InlineKeybo
   return keyboard;
 }
 
+export function colorToolsText(): string {
+  return [
+    '🎨 Color Tools',
+    '',
+    'Grayscale converts pages to readable gray tones.',
+    'Black & White produces true monochrome output with a threshold preset.',
+    'Invert Colors flips light and dark, including images.',
+    'Clear Background turns off-white paper into clean white.',
+    '',
+    'These tools render pages sequentially and have a lower page limit.',
+  ].join('\n');
+}
+
+export function colorToolsKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text('⚪ Grayscale', 'tool:gray')
+    .text('⚫ Black & White', 'tool:bw')
+    .row()
+    .text('🌗 Invert Colors', 'tool:invert')
+    .text('🧽 Clear Background', 'tool:clear')
+    .row()
+    .text('Back to menu', 'menu:home');
+}
+
 export function helpText(
   maxUploadMb: number,
   maxOutputMb: number,
   mergeMaxFiles = 10,
+  rasterMaxPages = 30,
 ): string {
   return [
     'NoteSprint help',
     '',
     '/start - open the main menu',
     '/verify - check channel membership again',
-    '/cancel - cancel an upload, merge, or running PDF',
+    '/cancel - cancel any upload or running PDF job',
     '/whoami - show your Telegram ID and role',
     '/help - show this message',
     '',
     'Join every required channel, then tap Verify Membership.',
     'The bot checks membership again before opening any PDF tool.',
     '',
+    'Tools: Process, Merge, Split, Page Selection, Page Reorder, Rotate,',
+    'Color Tools (Grayscale, Black & White, Invert, Clear Background), and N-up.',
+    '',
     `Upload limit: ${maxUploadMb} MB. Output limit: ${maxOutputMb} MB.`,
     `Merge: send 2-${mergeMaxFiles} PDFs in order, then tap Finish Uploading.`,
+    `Color tools: ${rasterMaxPages} pages max, with lower caps at higher quality.`,
+    'Black & White has the strictest page cap. No OCR or handwriting clean-up is offered.',
     'Files are temporary. They are deleted after delivery and never archived.',
     '',
     ...compressionHelpSection(),
@@ -72,9 +112,9 @@ export function aboutText(): string {
   return [
     `✨ NoteSprint bot v${BOT_VERSION}`,
     '',
-    'Turns scanned or handwritten PDF pages into clean, printable PDFs without leaving Telegram.',
+    'Splits, merges, rotates, rearranges, and cleans up PDF pages inside Telegram.',
     '',
-    'Stateless deployment: no database, no permanent file storage.',
+    'No OCR or handwriting recognition. Stateless deployment: no database, no permanent storage.',
     'Project: https://github.com/mdmonirhossen6/notesprint',
   ].join('\n');
 }
