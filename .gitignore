@@ -34,3 +34,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# telegram bot (separate service)
+/bot/node_modules
+/bot/.env
+/bot/data/
+/bot/tmp/
+/bot/dist/
+/bot/*.db
+/bot/*.db-*

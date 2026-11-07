@@ -1,0 +1,11 @@
+node_modules
+dist
+data
+tmp
+.env
+.env.*
+!.env.example
+tests
+*.db
+*.db-*
+.git

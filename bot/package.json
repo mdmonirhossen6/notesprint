@@ -1,0 +1,30 @@
+{
+  "name": "notesprint-bot",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "description": "NoteSprint Telegram bot",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --import tsx --watch src/index.ts",
+    "start": "node --env-file-if-exists=.env --import tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start:prod": "node --env-file-if-exists=.env dist/src/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test tests/config.test.ts tests/db.test.ts tests/auth.test.ts tests/server.test.ts tests/channels.test.ts tests/membership.test.ts tests/files.test.ts tests/compression.test.ts tests/stateless.test.ts",
+    "set-webhook": "node --env-file-if-exists=.env --import tsx scripts/set-webhook.ts",
+    "delete-webhook": "node --env-file-if-exists=.env --import tsx scripts/delete-webhook.ts",
+    "bot-api-logout": "node --env-file-if-exists=.env --import tsx scripts/bot-api-logout.ts"
+  },
+  "dependencies": {
+    "grammy": "^1.46.0",
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}
