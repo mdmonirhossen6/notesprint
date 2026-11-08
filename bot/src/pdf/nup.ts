@@ -1,6 +1,7 @@
 import { PDFArray, PDFDocument, StandardFonts, degrees, rgb } from 'pdf-lib';
 import type { PDFEmbeddedPage, PDFFont, PDFPage } from 'pdf-lib';
 import { FileHandlingError } from '../files/errors.js';
+import { yieldToEventLoop } from '../lib/yield.js';
 import { PdfDeadline, loadPdfFile, savePdfFile } from './common.js';
 
 export type PaperSize = 'a4' | 'a3' | 'a5' | 'letter' | 'legal';
@@ -326,6 +327,8 @@ export async function nupPdf(
         topMargin,
       );
     }
+
+    await yieldToEventLoop();
   }
 
   const outputBytes = await savePdfFile(target, outputPath, {

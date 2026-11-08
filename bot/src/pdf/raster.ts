@@ -7,7 +7,10 @@ import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { FileHandlingError } from '../files/errors.js';
 import { cleanupFile } from '../files/paths.js';
+import { yieldToEventLoop } from '../lib/yield.js';
 import { PdfDeadline, savePdfFile } from './common.js';
+
+const CLEAR_CHUNK_PIXELS = 131_072;
 
 const globalScope = globalThis as typeof globalThis & {
   DOMMatrix?: typeof DOMMatrix;
@@ -157,6 +160,7 @@ export async function applyRasterFilter(
       .toBuffer({ resolveWithObject: true });
 
     const pixels = raw.data;
+    let processed = 0;
     for (let index = 0; index < pixels.length; index += 3) {
       if (
         pixels[index]! >= threshold &&
@@ -167,6 +171,8 @@ export async function applyRasterFilter(
         pixels[index + 1] = 255;
         pixels[index + 2] = 255;
       }
+      processed += 1;
+      if (processed % CLEAR_CHUNK_PIXELS === 0) await yieldToEventLoop();
     }
 
     const output = await sharp(pixels, {
@@ -319,7 +325,7 @@ export async function rasterizePdf(
 
       options.onProgress?.(pageNumber, pageCount);
 
-      options.onProgress?.(pageNumber, pageCount);
+      await yieldToEventLoop();
 
       if (pageNumber % 10 === 0) {
         await document.cleanup();

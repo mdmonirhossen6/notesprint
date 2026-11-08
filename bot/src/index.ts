@@ -24,10 +24,21 @@ const LANGUAGE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TUTORIAL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAINTENANCE_INTERVAL_MS = 5 * 60 * 1000;
 const SHUTDOWN_DRAIN_MS = 20_000;
+const LOOP_MONITOR_INTERVAL_MS = 5_000;
+const RUNTIME_STATS_INTERVAL_MS = 60_000;
+const LOOP_LAG_WARN_MS = 250;
 
 async function main(): Promise<void> {
   const config = loadConfig();
   const logger = createLogger(config.logLevel);
+
+  process.on('unhandledRejection', (reason) => {
+    logger.error('unhandled_rejection', {}, reason);
+  });
+  process.on('uncaughtException', (error) => {
+    logger.error('uncaught_exception', {}, error);
+    setImmediate(() => process.exit(1));
+  });
 
   await ensureDirectory(config.tmpDir);
 
@@ -155,11 +166,49 @@ async function main(): Promise<void> {
     languages,
     tutorials,
   });
-  await bot.init();
+
+  // Open the port before contacting Telegram so health checks pass even when
+  // startup networking is slow. Updates wait for readiness in the background.
+  const ready = bot.init().then(() => undefined);
+  let server: Server | undefined;
+  if (config.botMode === 'webhook') {
+    server = startHttpServer(bot, config, logger, { ensureReady: () => ready });
+  }
+
+  await ready;
 
   await runMaintenance();
   const maintenanceTimer = setInterval(() => void runMaintenance(), MAINTENANCE_INTERVAL_MS);
   maintenanceTimer.unref();
+
+  let lastLoopTick = Date.now();
+  const loopMonitor = setInterval(() => {
+    const current = Date.now();
+    const lagMs = current - lastLoopTick - LOOP_MONITOR_INTERVAL_MS;
+    lastLoopTick = current;
+    if (lagMs >= LOOP_LAG_WARN_MS) {
+      const memory = process.memoryUsage();
+      logger.warn('event_loop_lag', {
+        lagMs,
+        rssMb: Math.round(memory.rss / (1024 * 1024)),
+        heapUsedMb: Math.round(memory.heapUsed / (1024 * 1024)),
+      });
+    }
+  }, LOOP_MONITOR_INTERVAL_MS);
+  loopMonitor.unref();
+
+  const statsMonitor = setInterval(() => {
+    const memory = process.memoryUsage();
+    logger.info('runtime_stats', {
+      rssMb: Math.round(memory.rss / (1024 * 1024)),
+      heapUsedMb: Math.round(memory.heapUsed / (1024 * 1024)),
+      externalMb: Math.round(memory.external / (1024 * 1024)),
+      workspaces: workspaces.activeCount(),
+      queuePending: fileQueue.pending,
+      uptimeSeconds: Math.round(process.uptime()),
+    });
+  }, RUNTIME_STATS_INTERVAL_MS);
+  statsMonitor.unref();
 
   logger.info('bot_ready', {
     username: bot.botInfo.username,
@@ -174,17 +223,14 @@ async function main(): Promise<void> {
     tmpDir: config.tmpDir,
   });
 
-  let server: Server | undefined;
-  if (config.botMode === 'webhook') {
-    server = startHttpServer(bot, config, logger);
-  }
-
   let shuttingDown = false;
   const shutdown = async (signal: string): Promise<void> => {
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info('shutting_down', { signal });
     clearInterval(maintenanceTimer);
+    clearInterval(loopMonitor);
+    clearInterval(statsMonitor);
 
     try {
       await bot.stop();
@@ -204,7 +250,9 @@ async function main(): Promise<void> {
     }
 
     if (server) {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+      const closing = new Promise<void>((resolve) => server?.close(() => resolve()));
+      server.closeAllConnections();
+      await closing;
     }
 
     process.exit(0);

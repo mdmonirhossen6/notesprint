@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { PDFDocument } from 'pdf-lib';
 import { FileHandlingError } from '../files/errors.js';
 import { cleanupFile } from '../files/paths.js';
+import { yieldToEventLoop } from '../lib/yield.js';
 
 export interface MergePdfsOptions {
   maxOutputBytes: number;
@@ -107,6 +108,7 @@ export async function mergePdfs(
 
       const copied = await target.copyPages(source, source.getPageIndices());
       for (const page of copied) target.addPage(page);
+      await yieldToEventLoop();
     }
 
     if (timedOut) throw timedOutError();
