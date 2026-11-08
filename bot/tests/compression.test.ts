@@ -57,7 +57,7 @@ function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
 }
 
 test('main menu compression button opens the PDF24 URL', () => {
-  const keyboard = mainMenuKeyboard(testConfig(), true);
+  const keyboard = mainMenuKeyboard('en', testConfig(), true, false);
   const compress = keyboard.inline_keyboard
     .flat()
     .find((button) => button.text === 'Compress PDF');
@@ -69,7 +69,7 @@ test('main menu compression button opens the PDF24 URL', () => {
 });
 
 test('help keyboard includes the same external compression URL', () => {
-  const buttons = helpKeyboard().inline_keyboard.flat();
+  const buttons = helpKeyboard('en').inline_keyboard.flat();
   const compress = buttons.find((button) => button.text === 'Compress PDF');
 
   assert.ok(compress, 'Compress PDF button is missing from help');

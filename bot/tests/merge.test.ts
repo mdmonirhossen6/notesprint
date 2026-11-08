@@ -307,21 +307,17 @@ test('merge session prune returns expired sessions and aborts their controllers'
   assert.equal(store.activeCount(), 0);
 });
 
-test('menu exposes implemented tools but no unimplemented placeholders', () => {
-  const buttons = mainMenuKeyboard(config(), false).inline_keyboard.flat();
+test('menu exposes implemented workspace tools but no unimplemented placeholders', () => {
+  const buttons = mainMenuKeyboard('en', config(), false, false).inline_keyboard.flat();
   const labels = buttons.map((button) => button.text);
 
-  assert.equal(labels.includes('📎 Merge PDFs'), true);
-  assert.equal(labels.includes('✂️ Split PDF'), true);
-  assert.equal(labels.includes('📑 Page Selection'), true);
-  assert.equal(labels.includes('🔀 Page Reorder'), true);
-  assert.equal(labels.includes('🔄 Rotate PDF'), true);
-  assert.equal(labels.includes('🎨 Color Tools'), true);
-  assert.equal(labels.includes('🧾 N-up Layout'), true);
+  assert.equal(labels.includes('🆕 New PDF Workspace'), true);
+  assert.equal(labels.includes('🧰 Available PDF Tools'), true);
+  assert.equal(labels.includes('🌐 Language: বাংলা / English'), true);
   assert.equal(labels.includes('✨ Enhance PDF'), false);
   assert.equal(labels.includes('Compress PDF'), true);
 
-  const help = helpText(19, 49, 10);
-  assert.match(help, /Merge: send 2-10 PDFs/);
-  assert.match(help, /Finish Uploading/);
+  const help = helpText('en', config());
+  assert.match(help, /Workspace: up to 10 files, 40 MB/);
+  assert.match(help, /\/workspace/);
 });

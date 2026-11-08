@@ -7,6 +7,8 @@ import type { UploadSessionStore } from '../files/upload-session.js';
 import type { MergeSessionStore } from '../files/merge-session.js';
 import type { ToolSessionStore } from '../files/tool-session.js';
 import type { JobRunner } from '../jobs/runner.js';
+import type { LanguageStore } from './i18n.js';
+import type { WorkspaceStore } from '../workspace/store.js';
 
 export interface BotDeps {
   config: AppConfig;
@@ -18,4 +20,6 @@ export interface BotDeps {
   toolSessions: ToolSessionStore;
   uploadRateLimiter: RateLimiter;
   jobRunner: JobRunner;
+  workspaces: WorkspaceStore;
+  languages: LanguageStore;
 }

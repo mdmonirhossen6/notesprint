@@ -4,43 +4,73 @@ import type { AppConfig } from '../config.js';
 import type { Logger } from '../logger.js';
 import type { MembershipSummary } from '../channels/membership.js';
 import { BOT_VERSION } from '../version.js';
-import { COMPRESSION_URL, compressionHelpSection } from './compression.js';
+import {
+  MAX_WORKSPACE_FILES,
+  WORKSPACE_TTL_MS,
+} from '../workspace/types.js';
+import type { Workspace } from '../workspace/types.js';
+import { COMPRESSION_URL } from './compression.js';
+import { translate } from './i18n.js';
+import type { Lang } from './i18n.js';
 
-export function mainMenuText(firstName?: string): string {
-  const greeting = firstName ? `Hi ${firstName}.` : 'Welcome.';
-  return [
-    '✨ NoteSprint',
+export function mainMenuText(lang: Lang, firstName?: string, workspace?: Workspace | null): string {
+  const greeting = firstName
+    ? translate(lang, 'menu.greeting', { name: firstName })
+    : translate(lang, 'menu.welcome');
+  const lines = [
+    translate(lang, 'menu.title'),
     '',
-    `${greeting} Pick a tool below — everything stays inside Telegram.`,
+    greeting,
+    translate(lang, 'menu.subtitle'),
     '',
-    'Process, merge, split, select, reorder, rotate, color, and N-up PDFs.',
-    'Files are deleted immediately after delivery.',
-  ].join('\n');
+    translate(lang, 'menu.filesDeleted'),
+  ];
+
+  if (workspace) {
+    lines.push(
+      '',
+      translate(lang, 'menu.workspaceStatus', {
+        files: workspace.files.length,
+        operations: workspace.operations.length,
+      }),
+    );
+    const remaining = workspace.updatedAt + WORKSPACE_TTL_MS - Date.now();
+    if (remaining > 0) {
+      lines.push(
+        translate(lang, 'menu.workspaceExpires', {
+          minutes: Math.max(1, Math.ceil(remaining / 60_000)),
+        }),
+      );
+    }
+  }
+
+  return lines.join('\n');
 }
 
-export function mainMenuKeyboard(config: AppConfig, admin: boolean): InlineKeyboard {
+export function mainMenuKeyboard(
+  lang: Lang,
+  config: AppConfig,
+  admin: boolean,
+  hasWorkspace: boolean,
+): InlineKeyboard {
   const keyboard = new InlineKeyboard()
-    .text('🧩 Process PDF', 'tool:process')
-    .text('📎 Merge PDFs', 'tool:merge')
+    .text(translate(lang, 'menu.newWorkspace'), 'menu:new')
     .row()
-    .text('✂️ Split PDF', 'tool:split')
-    .text('📑 Page Selection', 'tool:select')
+    .text(translate(lang, hasWorkspace ? 'menu.myWorkspace' : 'menu.noWorkspace'), 'menu:workspace')
     .row()
-    .text('🔀 Page Reorder', 'tool:reorder')
-    .text('🔄 Rotate PDF', 'tool:rotate')
+    .text(translate(lang, 'menu.tools'), 'menu:tools')
     .row()
-    .text('🎨 Color Tools', 'tool:colors')
-    .text('🧾 N-up Layout', 'tool:nup')
+    .url(translate(lang, 'menu.compress'), COMPRESSION_URL)
     .row()
-    .url('Compress PDF', COMPRESSION_URL)
+    .text(translate(lang, 'menu.language'), 'menu:language')
     .row()
-    .text('❓ Help', 'menu:help')
-    .text('ℹ️ About NoteSprint', 'menu:about')
+    .text(translate(lang, 'menu.help'), 'menu:help')
+    .text(translate(lang, 'menu.about'), 'menu:about')
     .row()
-    .url('🚀 Explore Prostuti App', config.prostutiAppUrl);
+    .url(translate(lang, 'menu.prostuti'), config.prostutiAppUrl);
 
   if (admin) {
-    keyboard.row().text('🛠 Admin panel', 'admin:home');
+    keyboard.row().text(translate(lang, 'menu.admin'), 'admin:home');
   }
 
   return keyboard;
@@ -70,77 +100,87 @@ export function colorToolsKeyboard(): InlineKeyboard {
     .text('Back to menu', 'menu:home');
 }
 
-export function helpText(
-  maxUploadMb: number,
-  maxOutputMb: number,
-  mergeMaxFiles = 10,
-  rasterMaxPages = 30,
-): string {
+export function helpText(lang: Lang, config: AppConfig): string {
+  const limits = {
+    maxUploadMb: config.maxUploadMb,
+    maxOutputMb: config.maxOutputMb,
+    maxFiles: MAX_WORKSPACE_FILES,
+    maxTotalMb: config.mergeMaxTotalMb,
+    maxPages: config.maxPdfPages,
+  };
+
   return [
-    'NoteSprint help',
+    translate(lang, 'help.title'),
     '',
-    '/start - open the main menu',
-    '/verify - check channel membership again',
-    '/cancel - cancel any upload or running PDF job',
-    '/whoami - show your Telegram ID and role',
-    '/help - show this message',
+    translate(lang, 'help.commands'),
     '',
-    'Join every required channel, then tap Verify Membership.',
-    'The bot checks membership again before opening any PDF tool.',
+    translate(lang, 'help.membership'),
     '',
-    'Tools: Process, Merge, Split, Page Selection, Page Reorder, Rotate,',
-    'Color Tools (Grayscale, Black & White, Invert, Clear Background), and N-up.',
+    translate(lang, 'help.workspace'),
+    translate(lang, 'help.tools'),
     '',
-    `Upload limit: ${maxUploadMb} MB. Output limit: ${maxOutputMb} MB.`,
-    `Merge: send 2-${mergeMaxFiles} PDFs in order, then tap Finish Uploading.`,
-    `Color tools: ${rasterMaxPages} pages max, with lower caps at higher quality.`,
-    'Black & White has the strictest page cap. No OCR or handwriting clean-up is offered.',
-    'Files are temporary. They are deleted after delivery and never archived.',
+    translate(lang, 'help.limits', limits),
+    translate(lang, 'help.privacy'),
+    translate(lang, 'help.render'),
     '',
-    ...compressionHelpSection(),
+    translate(lang, 'help.language'),
+    '',
+    [
+      translate(lang, 'compression.title'),
+      translate(lang, 'compression.step1'),
+      translate(lang, 'compression.step2'),
+      translate(lang, 'compression.step3'),
+      translate(lang, 'compression.step4'),
+      translate(lang, 'compression.step5'),
+      translate(lang, 'compression.step6'),
+      '',
+      translate(lang, 'compression.external'),
+      translate(lang, 'compression.neverUpload'),
+      translate(lang, 'compression.sensitive'),
+    ].join('\n'),
   ].join('\n');
 }
 
-export function helpKeyboard(): InlineKeyboard {
+export function helpKeyboard(lang: Lang): InlineKeyboard {
   return new InlineKeyboard()
-    .url('Compress PDF', COMPRESSION_URL)
+    .url(translate(lang, 'menu.compress'), COMPRESSION_URL)
     .row()
-    .text('Back to menu', 'menu:home');
+    .text(translate(lang, 'menu.back'), 'menu:home');
 }
 
-export function aboutText(): string {
+export function aboutText(lang: Lang): string {
   return [
-    `✨ NoteSprint bot v${BOT_VERSION}`,
+    translate(lang, 'about.title', { version: BOT_VERSION }),
     '',
-    'Splits, merges, rotates, rearranges, and cleans up PDF pages inside Telegram.',
+    translate(lang, 'about.body'),
     '',
-    'No OCR or handwriting recognition. Stateless deployment: no database, no permanent storage.',
-    'Project: https://github.com/mdmonirhossen6/notesprint',
+    translate(lang, 'about.stateless'),
+    translate(lang, 'about.project'),
   ].join('\n');
 }
 
-export function joinRequiredText(summary: MembershipSummary): string {
+export function joinRequiredText(lang: Lang, summary: MembershipSummary): string {
   const lines = [
-    '🔒 Channel membership required',
+    translate(lang, 'join.title'),
     '',
-    'Join every channel below, then tap Verify Membership.',
+    translate(lang, 'join.instructions'),
     '',
   ];
 
   for (const entry of summary.channels) {
     const icon = entry.isMember ? '✅' : entry.unavailable ? '⚠️' : '❌';
-    const note = entry.unavailable ? ' (temporarily unavailable)' : '';
+    const note = entry.unavailable ? ` (${translate(lang, 'join.unavailable')})` : '';
     lines.push(`${icon} ${entry.channel.title}${note}`);
   }
 
   if (summary.hasUnavailable) {
-    lines.push('', 'If a channel is unavailable, try again later or contact an administrator.');
+    lines.push('', translate(lang, 'join.retryLater'));
   }
 
   return lines.join('\n');
 }
 
-export function joinRequiredKeyboard(summary: MembershipSummary): InlineKeyboard {
+export function joinRequiredKeyboard(lang: Lang, summary: MembershipSummary): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   for (const entry of summary.channels) {
@@ -153,8 +193,10 @@ export function joinRequiredKeyboard(summary: MembershipSummary): InlineKeyboard
     }
   }
 
-  keyboard.text('✅ Verify Membership', 'verify:check').row();
-  keyboard.text('❓ Help', 'menu:help').text('ℹ️ About', 'menu:about');
+  keyboard.text(translate(lang, 'join.verify'), 'verify:check').row();
+  keyboard
+    .text(translate(lang, 'join.help'), 'menu:help')
+    .text(translate(lang, 'join.about'), 'menu:about');
   return keyboard;
 }
 

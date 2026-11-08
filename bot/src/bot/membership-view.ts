@@ -8,6 +8,7 @@ export async function ensureMembership(ctx: Context, deps: BotDeps): Promise<boo
   const summary = await deps.membership.check(ctx.from.id);
   if (summary.allJoined) return true;
 
-  await editOrReply(ctx, joinRequiredText(summary), joinRequiredKeyboard(summary));
+  const lang = deps.languages.resolve(ctx.from.id, ctx.from.language_code);
+  await editOrReply(ctx, joinRequiredText(lang, summary), joinRequiredKeyboard(lang, summary));
   return false;
 }

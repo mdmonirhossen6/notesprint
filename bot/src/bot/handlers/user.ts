@@ -2,6 +2,8 @@ import { InlineKeyboard } from 'grammy';
 import type { Bot, Context } from 'grammy';
 import { getAccessRole, isSuperAdmin } from '../../auth/access.js';
 import type { BotDeps } from '../types.js';
+import { languageLabel, translate } from '../i18n.js';
+import type { Lang } from '../i18n.js';
 import {
   aboutText,
   editOrReply,
@@ -12,38 +14,49 @@ import {
   mainMenuKeyboard,
   mainMenuText,
 } from '../ui.js';
+import { languagePanel } from '../workspace-views.js';
+
+function langOf(ctx: Context, deps: BotDeps): Lang {
+  if (!ctx.from) return 'bn';
+  return deps.languages.resolve(ctx.from.id, ctx.from.language_code);
+}
 
 export async function showHome(ctx: Context, deps: BotDeps): Promise<void> {
   if (!ctx.from) return;
 
+  const lang = langOf(ctx, deps);
   const summary = await deps.membership.check(ctx.from.id);
   if (!summary.allJoined) {
-    await editOrReply(ctx, joinRequiredText(summary), joinRequiredKeyboard(summary));
+    await editOrReply(ctx, joinRequiredText(lang, summary), joinRequiredKeyboard(lang, summary));
     return;
   }
 
+  const workspace = deps.workspaces.get(ctx.from.id);
   await editOrReply(
     ctx,
-    mainMenuText(ctx.from.first_name),
-    mainMenuKeyboard(deps.config, isSuperAdmin(ctx.from.id, deps.config.superAdminId)),
+    mainMenuText(lang, ctx.from.first_name, workspace),
+    mainMenuKeyboard(
+      lang,
+      deps.config,
+      isSuperAdmin(ctx.from.id, deps.config.superAdminId),
+      workspace !== null,
+    ),
   );
 }
 
-function backKeyboard(): InlineKeyboard {
-  return new InlineKeyboard().text('Back to menu', 'menu:home');
+function backKeyboard(lang: Lang): InlineKeyboard {
+  return new InlineKeyboard().text(translate(lang, 'menu.back'), 'menu:home');
 }
 
 function showHelp(ctx: Context, deps: BotDeps): Promise<void> {
-  return editOrReply(
-    ctx,
-    helpText(
-      deps.config.maxUploadMb,
-      deps.config.maxOutputMb,
-      deps.config.mergeMaxFiles,
-      deps.config.rasterMaxPages,
-    ),
-    helpKeyboard(),
-  );
+  const lang = langOf(ctx, deps);
+  return editOrReply(ctx, helpText(lang, deps.config), helpKeyboard(lang));
+}
+
+function showLanguage(ctx: Context, deps: BotDeps): Promise<void> {
+  const lang = langOf(ctx, deps);
+  const { text, keyboard } = languagePanel(lang);
+  return editOrReply(ctx, text, keyboard);
 }
 
 export function registerUserHandlers(bot: Bot, deps: BotDeps): void {
@@ -62,20 +75,32 @@ export function registerUserHandlers(bot: Bot, deps: BotDeps): void {
   });
 
   bot.command('about', async (ctx) => {
-    await editOrReply(ctx, aboutText(), backKeyboard());
+    const lang = langOf(ctx, deps);
+    await editOrReply(ctx, aboutText(lang), backKeyboard(lang));
+  });
+
+  bot.command('language', async (ctx) => {
+    await showLanguage(ctx, deps);
   });
 
   bot.command('verify', async (ctx) => {
     if (!ctx.from) return;
+    const lang = langOf(ctx, deps);
     const summary = await membership.check(ctx.from.id, { force: true });
     if (!summary.allJoined) {
-      await editOrReply(ctx, joinRequiredText(summary), joinRequiredKeyboard(summary));
+      await editOrReply(ctx, joinRequiredText(lang, summary), joinRequiredKeyboard(lang, summary));
       return;
     }
+    const workspace = deps.workspaces.get(ctx.from.id);
     await editOrReply(
       ctx,
-      mainMenuText(ctx.from.first_name),
-      mainMenuKeyboard(config, isSuperAdmin(ctx.from.id, config.superAdminId)),
+      mainMenuText(lang, ctx.from.first_name, workspace),
+      mainMenuKeyboard(
+        lang,
+        config,
+        isSuperAdmin(ctx.from.id, config.superAdminId),
+        workspace !== null,
+      ),
     );
   });
 
@@ -96,30 +121,62 @@ export function registerUserHandlers(bot: Bot, deps: BotDeps): void {
   });
 
   bot.callbackQuery('menu:about', async (ctx) => {
+    const lang = langOf(ctx, deps);
     await ctx.answerCallbackQuery();
-    await editOrReply(ctx, aboutText(), backKeyboard());
+    await editOrReply(ctx, aboutText(lang), backKeyboard(lang));
+  });
+
+  bot.callbackQuery('menu:language', async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showLanguage(ctx, deps);
+  });
+
+  bot.callbackQuery(/^lang:set:(bn|en)$/, async (ctx) => {
+    if (!ctx.from) return;
+    const value = ctx.match[1] as Lang;
+    deps.languages.set(ctx.from.id, value);
+    await ctx.answerCallbackQuery({
+      text: translate(value, 'language.saved', { language: languageLabel(value) }),
+    });
+    await editOrReply(
+      ctx,
+      mainMenuText(value, ctx.from.first_name, deps.workspaces.get(ctx.from.id)),
+      mainMenuKeyboard(
+        value,
+        config,
+        isSuperAdmin(ctx.from.id, config.superAdminId),
+        deps.workspaces.get(ctx.from.id) !== null,
+      ),
+    );
   });
 
   bot.callbackQuery('verify:check', async (ctx) => {
     await ctx.answerCallbackQuery();
     if (!ctx.from) return;
 
+    const lang = langOf(ctx, deps);
     const summary = await membership.check(ctx.from.id, { force: true });
     if (!summary.allJoined) {
-      await editOrReply(ctx, joinRequiredText(summary), joinRequiredKeyboard(summary));
+      await editOrReply(ctx, joinRequiredText(lang, summary), joinRequiredKeyboard(lang, summary));
       return;
     }
 
+    const workspace = deps.workspaces.get(ctx.from.id);
     await editOrReply(
       ctx,
-      mainMenuText(ctx.from.first_name),
-      mainMenuKeyboard(config, isSuperAdmin(ctx.from.id, config.superAdminId)),
+      mainMenuText(lang, ctx.from.first_name, workspace),
+      mainMenuKeyboard(
+        lang,
+        config,
+        isSuperAdmin(ctx.from.id, config.superAdminId),
+        workspace !== null,
+      ),
     );
   });
 
   bot.callbackQuery(/^channel:nolink:\d+$/, async (ctx) => {
     await ctx.answerCallbackQuery({
-      text: 'This channel has no public join link yet. Please contact an administrator.',
+      text: translate(langOf(ctx, deps), 'join.noLink'),
       show_alert: true,
     });
   });

@@ -474,17 +474,16 @@ test('every advertised tool is defined and the menu exposes it', () => {
   }
   assert.equal(isToolId('process'), false);
 
-  const menu = callbackData(mainMenuKeyboard(config(), false));
-  for (const tool of ['split', 'select', 'reorder', 'rotate', 'nup'] as const) {
-    assert.ok(menu.includes(`tool:${tool}`), `menu should contain tool:${tool}`);
+  const menu = callbackData(mainMenuKeyboard('en', config(), false, false));
+  for (const action of ['menu:new', 'menu:tools', 'menu:language'] as const) {
+    assert.ok(menu.includes(action), `menu should contain ${action}`);
   }
-  assert.ok(menu.includes('tool:colors'));
   const colourMenu = callbackData(colorToolsKeyboard());
   for (const tool of ['gray', 'bw', 'invert', 'clear'] as const) {
     assert.ok(colourMenu.includes(`tool:${tool}`), `colour menu should contain tool:${tool}`);
   }
   assert.ok(menu.includes('admin:home') === false, 'regular users must not see admin');
-  assert.ok(callbackData(mainMenuKeyboard(config(), true)).includes('admin:home'));
+  assert.ok(callbackData(mainMenuKeyboard('en', config(), true, false)).includes('admin:home'));
 });
 
 test('split, selection, reorder, and rotate panels expose the expected actions', () => {

@@ -1,45 +1,48 @@
 import { InlineKeyboard } from 'grammy';
 import type { Bot } from 'grammy';
 import type { BotDeps } from '../types.js';
+import { translate } from '../i18n.js';
+import type { Lang } from '../i18n.js';
 import { editOrReply } from '../ui.js';
 import { requireSuperAdmin } from '../middleware/access.js';
 
-function adminHomeKeyboard(): InlineKeyboard {
+function adminHomeKeyboard(lang: Lang): InlineKeyboard {
   return new InlineKeyboard()
-    .text('Required channels', 'admin:channels')
+    .text(translate(lang, 'admin.channels'), 'admin:channels')
     .row()
-    .text('Back to menu', 'menu:home');
+    .text(translate(lang, 'menu.back'), 'menu:home');
 }
 
-function adminHomeText(deps: BotDeps): string {
+function adminHomeText(lang: Lang, deps: BotDeps): string {
   return [
-    '🛠 Admin panel',
-    'Role: super_admin',
+    translate(lang, 'admin.title'),
+    translate(lang, 'admin.role'),
     '',
-    `Active PDF jobs: ${deps.jobRunner.activeCount()}`,
-    `Queued jobs: ${deps.fileQueue.pending}`,
-    `Active merge sessions: ${deps.mergeSessions.activeCount()}`,
-    `Active tool sessions: ${deps.toolSessions.activeCount()}`,
+    translate(lang, 'admin.activeJobs', { count: deps.jobRunner.activeCount() }),
+    translate(lang, 'admin.queued', { count: deps.fileQueue.pending }),
+    translate(lang, 'admin.workspaces', { count: deps.workspaces.activeCount() }),
+    translate(lang, 'admin.merges', { count: deps.mergeSessions.activeCount() }),
+    translate(lang, 'admin.tools', { count: deps.toolSessions.activeCount() }),
     '',
-    'This is a stateless deployment.',
-    'Required channels come from REQUIRED_CHANNELS and settings do not persist across restarts.',
+    translate(lang, 'admin.stateless'),
+    translate(lang, 'admin.channelsFromEnv'),
   ].join('\n');
 }
 
-function channelsText(deps: BotDeps): string {
+function channelsText(lang: Lang, deps: BotDeps): string {
   const channels = deps.config.requiredChannels;
   if (channels.length === 0) {
     return [
-      'Required channels',
+      translate(lang, 'admin.channels'),
       '',
-      'No channels configured. The bot is open to everyone.',
+      translate(lang, 'admin.noChannels'),
       '',
-      'Set REQUIRED_CHANNELS on Render to require membership.',
+      translate(lang, 'admin.setChannels'),
     ].join('\n');
   }
 
   return [
-    'Required channels',
+    translate(lang, 'admin.channels'),
     '',
     ...channels.flatMap((channel, index) => [
       `${index + 1}. ${channel.title}`,
@@ -47,28 +50,33 @@ function channelsText(deps: BotDeps): string {
       `   Join: ${channel.joinUrl ?? 'not set'}`,
     ]),
     '',
-    'Change REQUIRED_CHANNELS on Render, then redeploy or restart.',
+    translate(lang, 'admin.changeChannels'),
   ].join('\n');
 }
 
 export function registerAdminHandlers(bot: Bot, deps: BotDeps): void {
   const superOnly = requireSuperAdmin(deps.config);
+  const langOf = (ctx: { from?: { id: number; language_code?: string } }): Lang =>
+    ctx.from ? deps.languages.resolve(ctx.from.id, ctx.from.language_code) : 'bn';
 
   bot.command('admin', superOnly, async (ctx) => {
-    await ctx.reply(adminHomeText(deps), { reply_markup: adminHomeKeyboard() });
+    const lang = langOf(ctx);
+    await ctx.reply(adminHomeText(lang, deps), { reply_markup: adminHomeKeyboard(lang) });
   });
 
   bot.callbackQuery('admin:home', superOnly, async (ctx) => {
+    const lang = langOf(ctx);
     await ctx.answerCallbackQuery();
-    await editOrReply(ctx, adminHomeText(deps), adminHomeKeyboard());
+    await editOrReply(ctx, adminHomeText(lang, deps), adminHomeKeyboard(lang));
   });
 
   bot.callbackQuery('admin:channels', superOnly, async (ctx) => {
+    const lang = langOf(ctx);
     await ctx.answerCallbackQuery();
     await editOrReply(
       ctx,
-      channelsText(deps),
-      new InlineKeyboard().text('Back', 'admin:home'),
+      channelsText(lang, deps),
+      new InlineKeyboard().text(translate(lang, 'admin.back'), 'admin:home'),
     );
   });
 }

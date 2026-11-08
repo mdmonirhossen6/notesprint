@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { PDFDocument, degrees } from 'pdf-lib';
 import { ZipFile } from 'yazl';
 import { FileHandlingError } from '../files/errors.js';
-import { cleanupFile } from '../files/paths.js';
+import { cleanupFile, createTempPdfPath } from '../files/paths.js';
 import { PdfDeadline, loadPdfFile, savePdfFile } from './common.js';
 
 export type PageParseMode = 'subset' | 'permutation';
@@ -229,6 +229,56 @@ async function zipFiles(
   }
 
   return info.size;
+}
+
+export async function splitPdfParts(
+  inputPath: string,
+  workDir: string,
+  mode: 'every' | 'groups',
+  groupSize: number,
+  options: OrganizeOptions,
+): Promise<SplitFile[]> {
+  const deadline = new PdfDeadline(options.timeoutMs, options.signal);
+  deadline.check();
+
+  const source = await loadPdfFile(inputPath);
+  const pageCount = source.getPageCount();
+  const size = mode === 'every' ? 1 : groupSize;
+
+  if (size < 1 || size > pageCount) {
+    throw invalidRange(`Group size must be a whole number from 1 to ${pageCount}.`);
+  }
+
+  const groups: number[][] = [];
+  for (let start = 0; start < pageCount; start += size) {
+    const group: number[] = [];
+    for (let index = start; index < Math.min(start + size, pageCount); index += 1) {
+      group.push(index);
+    }
+    groups.push(group);
+  }
+
+  const files: SplitFile[] = [];
+  for (let index = 0; index < groups.length; index += 1) {
+    deadline.check();
+    const group = groups[index];
+    if (!group) continue;
+
+    const rangeLabel =
+      group.length === 1
+        ? `page-${group[0]! + 1}`
+        : `pages-${group[0]! + 1}-${group[group.length - 1]! + 1}`;
+    const name = `notesprint-${rangeLabel}.pdf`;
+    const path = createTempPdfPath(workDir);
+    const target = await buildDocument(source, group);
+    await savePdfFile(target, path, {
+      maxOutputBytes: options.maxOutputBytes,
+      deadline,
+    });
+    files.push({ path, name, pages: group.length });
+  }
+
+  return files;
 }
 
 export async function splitPdf(

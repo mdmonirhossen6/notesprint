@@ -9,9 +9,12 @@ import type { UploadSessionStore } from '../files/upload-session.js';
 import type { MergeSessionStore } from '../files/merge-session.js';
 import type { ToolSessionStore } from '../files/tool-session.js';
 import type { JobRunner } from '../jobs/runner.js';
+import type { WorkspaceStore } from '../workspace/store.js';
 import type { BotDeps } from './types.js';
+import type { LanguageStore } from './i18n.js';
 import { attachErrorHandler } from './ui.js';
 import { registerUserHandlers } from './handlers/user.js';
+import { registerWorkspaceHandlers } from './handlers/workspace.js';
 import { registerMergeHandlers } from './handlers/merge.js';
 import { registerUploadHandlers } from './handlers/upload.js';
 import { registerToolHandlers } from './handlers/tools.js';
@@ -26,6 +29,8 @@ export interface BotDependencies {
   toolSessions: ToolSessionStore;
   uploadRateLimiter: RateLimiter;
   jobRunner: JobRunner;
+  workspaces: WorkspaceStore;
+  languages: LanguageStore;
 }
 
 export function createBot(dependencies: BotDependencies): Bot {
@@ -38,6 +43,8 @@ export function createBot(dependencies: BotDependencies): Bot {
     toolSessions,
     uploadRateLimiter,
     jobRunner,
+    workspaces,
+    languages,
   } = dependencies;
 
   const bot = new Bot(config.botToken, {
@@ -69,9 +76,12 @@ export function createBot(dependencies: BotDependencies): Bot {
     toolSessions,
     uploadRateLimiter,
     jobRunner,
+    workspaces,
+    languages,
   };
 
   registerUserHandlers(bot, deps);
+  registerWorkspaceHandlers(bot, deps);
   registerMergeHandlers(bot, deps);
   registerUploadHandlers(bot, deps);
   registerToolHandlers(bot, deps);

@@ -3,20 +3,28 @@
 Telegram-native PDF intake and processing. The Next.js website stays in the repository
 root; this folder is a separate Node.js service designed for **Render Free Web Service**.
 
-The active runtime is **stateless**:
+The active runtime is **stateless**. The primary experience is a per-user **PDF
+workspace**: upload PDFs once, then build an editable pipeline of operations and run it
+without re-uploading.
 
-1. The user picks a tool from the inline menu: Process, Merge, Split, Page Selection,
-   Page Reorder, Rotate, Color Tools (Grayscale / Black & White / Invert / Clear
-   Background), or N-up Layout.
+1. The user opens **New PDF Workspace**, **My Current Workspace**, or **Available PDF
+   Tools** from the bilingual main menu.
 2. The bot validates the MIME type and declared size (max **19 MiB**) per file.
-3. Each file is streamed to a unique file in `/tmp`.
-4. Vector tools such as split, page selection, reorder, rotate, merge, and N-up use
-   `pdf-lib` and preserve text and vectors. Color tools render pages sequentially with
-   `pdfjs-dist`, Node canvas, and Sharp.
-5. The result is sent back to the same Telegram chat (max **49 MB**). Multi-file split
-   output is returned as a ZIP.
-6. All input and output files are deleted in a `finally` block on every path.
-7. A maintenance sweep removes abandoned temp files and expired in-memory state.
+3. Each file is streamed to a unique file in `/tmp`; duplicates in the same workspace are
+   rejected before download.
+4. The workspace keeps up to **10 files**, **40 MB combined**, and **300 pages** for 30
+   minutes of inactivity. Files can be added, removed, reordered, and replaced.
+5. The user builds a typed pipeline from Document Organization, Color & Image, Printing &
+   Layout, and Personalization operations, then reviews the preview.
+6. Vector tools use `pdf-lib` and preserve text and vectors. Color tools render pages
+   sequentially with `pdfjs-dist`, Node canvas, and Sharp.
+7. The result is sent back to the same Telegram chat (max **49 MB**). Multi-file output is
+   returned as a ZIP.
+8. All input, intermediate, and output files are deleted after delivery, cancellation,
+   workspace expiry, or failure. Originals are kept on failure/cancel so Retry does not
+   need another upload.
+9. A maintenance sweep removes abandoned temp files, expired workspaces, and language
+   preferences.
 
 Nothing is archived. No file is sent to R2, Supabase, or any other storage provider. The
 service keeps no database and no persistent user history.
@@ -24,27 +32,32 @@ service keeps no database and no persistent user history.
 ## What is live
 
 - grammY bot with long polling (local) and webhook (Render) modes.
+- **Unified PDF workspace**: upload once, then apply many operations without re-uploading.
+  Workspaces are private per Telegram user and expire after 30 minutes of inactivity.
+- **Two processing modes**: Combine First (merge all uploads, run the pipeline once) and
+  Process Individually (run the pipeline per upload; multiple results return as ZIP).
+- **Pipeline editing**: add, configure, remove, reorder, clear, preview, and run operations.
+  Originals are preserved until successful delivery.
+- **Document Organization**: split (every page, equal groups, extract), page selection
+  (keep/remove), reorder, rotate (all or selected pages).
+- **Color & Image**: grayscale, black & white with thresholds, invert, clear background.
+- **Printing & Layout**: N-up 2/4/6/9 on A4/A3/A5/Letter/Legal, orientation, margins,
+  gaps, separators, and page numbers.
+- **Personalization**: text watermark, PDF metadata editor, optional Asia/Dhaka timestamp
+  footer, and custom footer with page numbers and timestamp.
+- **Smart presets**: Print Friendly, Compact Notes, Ink Saver, and Presentation Print.
+  Every generated step remains editable.
+- **Full Bangla/English UI** with a language selector, `/language`, and Telegram
+  `language_code` inference. Preferences are in memory and expire after 30 days.
 - Static channel membership gate from `REQUIRED_CHANNELS`, cached in memory for
   2-5 minutes. Admins bypass the gate. Telegram API errors fail closed.
-- Super admin access from `SUPER_ADMIN_ID`; the admin panel shows current jobs and the
-  static channel list.
+- Super admin access from `SUPER_ADMIN_ID`; the admin panel shows current jobs, active
+  workspaces, sessions, and the static channel list.
 - PDF24 compression guidance for files above the limit. The button opens an external
   service; the bot never uploads anything to it.
 - **Merge PDFs**: send 2-10 documents one at a time, then tap **Finish Uploading**. Files
   are merged in the order they were received, page sizes are preserved, and the result is
   a single vector PDF. Per-file 19 MiB, combined 40 MB, 300 pages, 49 MB output.
-- **Split PDF**: extract a page range, split every page into its own PDF, or split into
-  equal groups. Multi-file results are returned as a ZIP.
-- **Page Selection**: keep only the listed pages, or remove them.
-- **Page Reorder**: send an explicit order containing every page exactly once.
-- **Rotate PDF**: 90°, 180°, or 270° clockwise, on all pages or a selected subset, without
-  rasterising.
-- **Color Tools**: Grayscale, Black & White with three threshold presets, Invert, and
-  Clear Background with three cleanup levels. Pages are rendered one at a time at 100,
-  150, or 200 DPI.
-- **N-up Layout**: 2, 4, 6, or 9 pages per sheet on A4, A3, A5, Letter, or Legal paper,
-  portrait, landscape, or auto orientation, with margins, gaps, separator lines, and
-  page numbers (start, position, size). N-up output is vector.
 - Streaming download with a hard byte limit, transfer timeout, `%PDF-` header check,
   and real-size re-check.
 - One PDF job at a time (`PROCESS_CONCURRENCY=1`) and one job per user, with `/cancel`
@@ -52,13 +65,15 @@ service keeps no database and no persistent user history.
 - Duplicate-processing prevention: a second upload while a job is active is rejected.
 - Merge sessions live in memory for 30 minutes, use their own cancellation signal, and
   are pruned with their temp files by the maintenance sweep.
-- Tool sessions live in memory for 30 minutes. Uploading, choosing settings, processing,
-  cancelling, and retrying are all handled by inline buttons; no command syntax is needed.
+- Tool sessions remain available for the legacy single-tool flow; the workspace is the
+  default path in the main menu.
 - Temp cleanup on success, failure, cancellation, timeout, startup, and every five
   minutes.
 - Health endpoint at `/healthz` that does not depend on any external service.
-- 125 tests covering config, membership, jobs, PDF validation, merge order/limits, page
-  parsing, vector tools, raster pixel output, N-up layout, UI, and resource limits.
+- 135 tests covering config, membership, jobs, PDF validation, merge order/limits, page
+  parsing, vector tools, raster pixel output, N-up layout, workspace stores, simulation,
+  bilingual dictionaries, full combine/individual pipelines, ZIP output, personalization,
+  cleanup, UI, and resource limits.
 
 ## Processing behaviour
 
@@ -73,8 +88,7 @@ page caps because they need far more memory than vector operations.
 
 | Operation | Implementation | Status |
 |---|---|---|
-| Process / validate / re-save | `pdf-lib` | Live |
-| Merge PDFs (2-10 files, ordered) | `pdf-lib.copyPages` | Live |
+| Workspace pipeline (combine / individual) | `workspace/run.ts` + `yazl` | Live |
 | Split (extract, every page, equal groups, ZIP) | `pdf-lib.copyPages` + `yazl` | Live |
 | Page selection (keep / remove) | `pdf-lib.copyPages` | Live |
 | Page reorder (explicit full order) | `pdf-lib.copyPages` | Live |
@@ -82,7 +96,42 @@ page caps because they need far more memory than vector operations.
 | Grayscale / invert / clear background | pdfjs + canvas + Sharp | Live |
 | Black & white, 3 thresholds | pdfjs + canvas + Sharp | Live |
 | N-up 2/4/6/9, paper, orientation, margins, gaps, separators, page numbers | `pdf-lib.embedPage` | Live |
+| Text watermark, opacity, rotation, position, selected pages | `pdf-lib.drawText` | Live |
+| Metadata editor (title, author, subject, keywords) | `pdf-lib` document metadata | Live |
+| Timestamp footer (Asia/Dhaka) | `pdf-lib` footer band | Live |
+| Custom footer (text, page numbers, timestamp) | `pdf-lib` footer band | Live |
 | Enhance / OCR / logo removal | — | Not implemented; no button exposed |
+
+### Workspace model and limits
+
+The workspace is a typed pipeline, not a chain of ad-hoc uploads. Files are stored once
+and every operation reads from the previous stage's output. Intermediate files live in a
+unique work directory and are removed as soon as a stage completes; originals remain until
+the final result is delivered. On failure or cancellation the originals stay in the
+workspace for Retry.
+
+- 10 files, 40 MB combined, 300 pages combined, 49 MB output.
+- 19 MiB per uploaded file, one heavy job at a time.
+- Maximum 40 pipeline outputs; split steps multiply the file count.
+- Watermark and footer text must be drawable with the standard PDF fonts (Latin letters,
+  digits, and common punctuation). Bengali PDF text is rejected with a localized message.
+- Split is multi-output; later compatible operations run on each result and the final
+  bundle is a ZIP when there is more than one file.
+- Incompatible combinations are rejected in Review before processing starts.
+
+### Language
+
+All menu, button, status, error, upload, help, privacy, and admin strings come from
+central dictionaries (`src/bot/i18n.ts`). Bengali is the fallback when Telegram does not
+report a supported language. Preferences live in memory for 30 days. A Render restart or
+free-plan sleep clears workspaces, language preferences, and temporary files.
+
+### Privacy and restart behaviour
+
+Workspace state is private to the Telegram user and chat. PDFs are never archived and are
+never uploaded to an external compression service automatically. If the Render Free
+instance restarts or sleeps, active workspaces and their temp files are lost; the bot
+explains this in the workspace and help screens.
 
 Quality caps for raster tools are enforced in the settings panel and again at processing
 time:
@@ -99,10 +148,21 @@ the caps come from measured peak memory on a 512 MB instance.
 
 ## Performance notes
 
-Both benchmarks below use 12 generated pages and run the compiled production build with
-`--max-semi-space-size=2`. Peak RSS is from `process.resourceUsage().maxRSS` in a separate
-child process per operation. Run `npm run benchmark` and
-`BENCH_IMAGE=1 npm run benchmark` to reproduce them.
+`npm run benchmark` runs two suites: the single-tool benchmark and the workspace pipeline
+benchmark. Both use 12 generated pages and run with `--max-semi-space-size=2`. Peak RSS is
+from `process.resourceUsage().maxRSS` in a separate child process per operation. Use
+`BENCH_IMAGE=1 npm run benchmark` for the image-heavy single-tool fixture.
+
+Workspace pipeline (12 pages across two inputs, 6 pages each):
+
+| Scenario | Files | Steps | Output | Duration | Peak RSS |
+|---|---|---|---|---|---|
+| Combine, merge only | 2 | 0 | 8 KiB PDF | 14 ms | 96 MB |
+| Combine, merge + rotate + watermark + timestamp + footer | 2 | 4 | 21 KiB PDF | 152 ms | 116 MB |
+| Individual, split two 6-page PDFs into 12 pages, ZIP | 2 | 1 | 16 KiB ZIP | 64 ms | 99 MB |
+| Single file, grayscale + N-up 4 | 1 | 2 | 673 KiB PDF | 2.1 s | 329 MB |
+
+Single-tool benchmarks:
 
 Vector fixture (13 KiB input):
 

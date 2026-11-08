@@ -227,13 +227,13 @@ test('processPdf refuses to start when already cancelled', async () => {
 });
 
 test('rendered UI keeps compression, limits, and no persistent file history', () => {
-  const kb = mainMenuKeyboard(config(), false);
+  const kb = mainMenuKeyboard('en', config(), false, false);
   const buttons = kb.inline_keyboard.flat();
 
   assert.equal(buttons.some((button) => button.text === 'Compress PDF'), true);
   assert.equal(buttons.some((button) => button.text === '📁 My Files'), false);
 
-  const help = helpText(19, 49);
+  const help = helpText('en', config());
   assert.match(help, /Upload limit: 19 MB/);
   assert.match(help, /deleted after delivery/);
   assert.match(help, /PDF24/);

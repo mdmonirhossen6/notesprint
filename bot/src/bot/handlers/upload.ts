@@ -11,6 +11,8 @@ import { formatBytes } from '../../lib/format.js';
 import { processPdf } from '../../pdf/process.js';
 import type { BotDeps } from '../types.js';
 import { oversizedPdfKeyboard, oversizedPdfText } from '../compression.js';
+import { translate } from '../i18n.js';
+import type { Lang } from '../i18n.js';
 import { ensureMembership } from '../membership-view.js';
 import { editOrReply } from '../ui.js';
 import { cleanupMergeSession, handleMergeDocument } from './merge.js';
@@ -49,6 +51,29 @@ async function replyFileError(ctx: Context, error: unknown, deps: BotDeps): Prom
     return;
   }
   await ctx.reply(userMessageForFileError(error, deps.config.maxUploadMb));
+}
+
+async function cancelWorkspaceWork(ctx: Context, deps: BotDeps): Promise<boolean> {
+  if (!ctx.from) return false;
+  const workspace = deps.workspaces.get(ctx.from.id);
+  if (!workspace) return false;
+
+  const lang: Lang = deps.languages.resolve(ctx.from.id, ctx.from.language_code);
+
+  if (workspace.status === 'processing' || deps.jobRunner.isActive(ctx.from.id)) {
+    deps.jobRunner.cancel(ctx.from.id);
+    await ctx.reply(translate(lang, 'ws.run.cancelling'));
+    return true;
+  }
+
+  if (workspace.awaitingText) {
+    workspace.awaitingText = null;
+    deps.workspaces.touch(ctx.from.id);
+    await ctx.reply(translate(lang, 'ws.prompt.cancelled'));
+    return true;
+  }
+
+  return false;
 }
 
 export function registerUploadHandlers(bot: Bot, deps: BotDeps): void {
@@ -118,6 +143,8 @@ export function registerUploadHandlers(bot: Bot, deps: BotDeps): void {
     await ctx.answerCallbackQuery();
     if (!ctx.from) return;
 
+    if (await cancelWorkspaceWork(ctx, deps)) return;
+
     uploadSessions.clear(ctx.from.id);
     const merge = mergeSessions.clear(ctx.from.id);
     if (merge) {
@@ -137,6 +164,8 @@ export function registerUploadHandlers(bot: Bot, deps: BotDeps): void {
 
   bot.command('cancel', async (ctx) => {
     if (!ctx.from) return;
+
+    if (await cancelWorkspaceWork(ctx, deps)) return;
 
     uploadSessions.clear(ctx.from.id);
     const merge = mergeSessions.clear(ctx.from.id);
