@@ -54,18 +54,14 @@ export function mainMenuKeyboard(
   hasWorkspace: boolean,
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard()
-    .text(translate(lang, 'menu.newWorkspace'), 'menu:new')
-    .row()
-    .text(translate(lang, hasWorkspace ? 'menu.myWorkspace' : 'menu.noWorkspace'), 'menu:workspace')
-    .row()
-    .text(translate(lang, 'menu.tools'), 'menu:tools')
-    .row()
-    .url(translate(lang, 'menu.compress'), COMPRESSION_URL)
-    .row()
-    .text(translate(lang, 'menu.language'), 'menu:language')
+    .text(
+      translate(lang, hasWorkspace ? 'menu.myWorkspace' : 'menu.newWorkspace'),
+      hasWorkspace ? 'menu:workspace' : 'menu:new',
+    )
     .row()
     .text(translate(lang, 'menu.help'), 'menu:help')
-    .text(translate(lang, 'menu.about'), 'menu:about')
+    .row()
+    .text(translate(lang, 'menu.language'), 'menu:language')
     .row()
     .url(translate(lang, 'menu.prostuti'), config.prostutiAppUrl);
 
@@ -76,28 +72,21 @@ export function mainMenuKeyboard(
   return keyboard;
 }
 
-export function colorToolsText(): string {
+export function tutorialText(lang: Lang): string {
   return [
-    '🎨 Color Tools',
+    translate(lang, 'tutorial.title'),
     '',
-    'Grayscale converts pages to readable gray tones.',
-    'Black & White produces true monochrome output with a threshold preset.',
-    'Invert Colors flips light and dark, including images.',
-    'Clear Background turns off-white paper into clean white.',
+    translate(lang, 'tutorial.body'),
     '',
-    'These tools render pages sequentially and have a lower page limit.',
+    translate(lang, 'tutorial.advanced'),
   ].join('\n');
 }
 
-export function colorToolsKeyboard(): InlineKeyboard {
+export function tutorialKeyboard(lang: Lang): InlineKeyboard {
   return new InlineKeyboard()
-    .text('⚪ Grayscale', 'tool:gray')
-    .text('⚫ Black & White', 'tool:bw')
+    .text(translate(lang, 'tutorial.start'), 'tut:start')
     .row()
-    .text('🌗 Invert Colors', 'tool:invert')
-    .text('🧽 Clear Background', 'tool:clear')
-    .row()
-    .text('Back to menu', 'menu:home');
+    .text(translate(lang, 'tutorial.skip'), 'tut:skip');
 }
 
 export function helpText(lang: Lang, config: AppConfig): string {
@@ -110,40 +99,34 @@ export function helpText(lang: Lang, config: AppConfig): string {
   };
 
   return [
-    translate(lang, 'help.title'),
+    translate(lang, 'guide.title'),
+    '',
+    translate(lang, 'guide.intro'),
+    '',
+    translate(lang, 'guide.step1'),
+    translate(lang, 'guide.step2'),
+    translate(lang, 'guide.step3'),
+    translate(lang, 'guide.step4'),
+    translate(lang, 'guide.step5'),
+    translate(lang, 'guide.step6'),
+    translate(lang, 'guide.step7'),
+    translate(lang, 'guide.step8'),
+    translate(lang, 'guide.step9'),
+    '',
+    translate(lang, 'guide.limits', limits),
+    translate(lang, 'guide.privacy'),
+    translate(lang, 'guide.render'),
+    translate(lang, 'compression.external'),
     '',
     translate(lang, 'help.commands'),
-    '',
-    translate(lang, 'help.membership'),
-    '',
-    translate(lang, 'help.workspace'),
-    translate(lang, 'help.tools'),
-    '',
-    translate(lang, 'help.limits', limits),
-    translate(lang, 'help.privacy'),
-    translate(lang, 'help.render'),
-    '',
-    translate(lang, 'help.language'),
-    '',
-    [
-      translate(lang, 'compression.title'),
-      translate(lang, 'compression.step1'),
-      translate(lang, 'compression.step2'),
-      translate(lang, 'compression.step3'),
-      translate(lang, 'compression.step4'),
-      translate(lang, 'compression.step5'),
-      translate(lang, 'compression.step6'),
-      '',
-      translate(lang, 'compression.external'),
-      translate(lang, 'compression.neverUpload'),
-      translate(lang, 'compression.sensitive'),
-    ].join('\n'),
   ].join('\n');
 }
 
 export function helpKeyboard(lang: Lang): InlineKeyboard {
   return new InlineKeyboard()
-    .url(translate(lang, 'menu.compress'), COMPRESSION_URL)
+    .text(translate(lang, 'guide.start'), 'menu:new')
+    .row()
+    .url(translate(lang, 'guide.compress'), COMPRESSION_URL)
     .row()
     .text(translate(lang, 'menu.back'), 'menu:home');
 }

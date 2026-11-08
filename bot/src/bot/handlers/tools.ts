@@ -25,11 +25,7 @@ import { TOOL_DEFINITIONS, isToolId } from '../../tools/definitions.js';
 import type { ToolId } from '../../tools/definitions.js';
 import { runTool } from '../../tools/run.js';
 import { ensureMembership } from '../membership-view.js';
-import {
-  colorToolsKeyboard,
-  colorToolsText,
-  editOrReply,
-} from '../ui.js';
+import { editOrReply } from '../ui.js';
 import {
   inputPromptKeyboard,
   inputPromptText,
@@ -237,11 +233,6 @@ export function registerToolHandlers(bot: Bot, deps: BotDeps): void {
     await ctx.answerCallbackQuery();
     const id = ctx.callbackQuery.data?.slice('tool:'.length);
     if (!id) return;
-
-    if (id === 'colors') {
-      await editOrReply(ctx, colorToolsText(), colorToolsKeyboard());
-      return;
-    }
 
     if (!isToolId(id)) return;
     await startTool(ctx, deps, id);

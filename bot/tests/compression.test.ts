@@ -56,21 +56,18 @@ function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
   };
 }
 
-test('main menu compression button opens the PDF24 URL', () => {
-  const keyboard = mainMenuKeyboard('en', testConfig(), true, false);
-  const compress = keyboard.inline_keyboard
-    .flat()
-    .find((button) => button.text === 'Compress PDF');
+test('main menu stays compact and compression moves to help', () => {
+  const keyboard = mainMenuKeyboard('en', testConfig(), false, false);
+  const buttons = keyboard.inline_keyboard.flat();
 
-  assert.ok(compress, 'Compress PDF button is missing');
-  assert.ok('url' in compress);
-  assert.equal(compress.url, COMPRESSION_URL);
+  assert.equal(buttons.length, 4);
+  assert.equal(buttons.some((button) => button.text === 'Compress PDF'), false);
   assert.equal(COMPRESSION_URL, 'https://tools.pdf24.org/en/compress-pdf');
 });
 
 test('help keyboard includes the same external compression URL', () => {
   const buttons = helpKeyboard('en').inline_keyboard.flat();
-  const compress = buttons.find((button) => button.text === 'Compress PDF');
+  const compress = buttons.find((button) => button.text === '🗜 Compress a large PDF');
 
   assert.ok(compress, 'Compress PDF button is missing from help');
   assert.ok('url' in compress);

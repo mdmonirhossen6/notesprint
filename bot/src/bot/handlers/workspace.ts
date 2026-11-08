@@ -22,7 +22,7 @@ import {
   removeOperation,
 } from '../../workspace/operations.js';
 import type { OperationCategory } from '../../workspace/operations.js';
-import { applyPreset, isPresetId } from '../../workspace/presets.js';
+import { applyPreset, applyPresetCustomization, isPresetId } from '../../workspace/presets.js';
 import { cleanupWorkspaceRun, runWorkspacePipeline } from '../../workspace/run.js';
 import type { PipelineRunResult, StageEvent } from '../../workspace/run.js';
 import {
@@ -44,21 +44,26 @@ import { ensureMembership } from '../membership-view.js';
 import type { BotDeps } from '../types.js';
 import { editOrReply } from '../ui.js';
 import {
+  advancedToolsPanel,
+  cancelConfirmPanel,
   completionText,
+  customSettingsPanel,
   failureText,
+  fileActionsPanel,
   modePanel,
+  moreOptionsPanel,
   operationConfigPanel,
   operationsCatalogPanel,
   presetLabel,
+  presetSummaryPanel,
   presetsPanel,
   processingKeyboard,
   progressText,
   rasterProgressText,
   remainingConfig,
+  replacePromptPanel,
   resultKeyboard,
   retryKeyboard,
-  reviewPanel,
-  toolsPanel,
   workspaceFilesPanel,
   workspaceOperationsPanel,
   workspacePanel,
@@ -557,14 +562,6 @@ export function registerWorkspaceHandlers(bot: Bot, deps: BotDeps): void {
     await openWorkspace(ctx, false);
   });
 
-  bot.callbackQuery('menu:tools', async (ctx) => {
-    await ctx.answerCallbackQuery();
-    if (!ctx.from) return;
-    if (!(await ensureMembership(ctx, deps))) return;
-    const lang = langOf(ctx, deps);
-    await showPanel(ctx, toolsPanel(lang));
-  });
-
   bot.command('workspace', async (ctx) => {
     await openWorkspace(ctx, false);
   });
@@ -597,8 +594,23 @@ export function registerWorkspaceHandlers(bot: Bot, deps: BotDeps): void {
   bot.callbackQuery('ws:back', async (ctx) => {
     const found = await requireWorkspace(ctx);
     if (!found) return;
+    found.workspace.replacingFileId = null;
+    found.workspace.awaitingUpload = false;
+    workspaces.touch(found.workspace.userId);
     await ctx.answerCallbackQuery();
     await showWorkspace(ctx, found.workspace, found.lang);
+  });
+
+  bot.callbackQuery('ws:more', async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    if (found.workspace.status === 'processing') {
+      await ctx.answerCallbackQuery({ text: t(found.lang, 'ws.run.busy'), show_alert: true });
+      await showWorkspace(ctx, found.workspace, found.lang);
+      return;
+    }
+    await ctx.answerCallbackQuery();
+    await showPanel(ctx, moreOptionsPanel(found.lang, found.workspace));
   });
 
   bot.callbackQuery('ws:files', async (ctx) => {
@@ -608,188 +620,26 @@ export function registerWorkspaceHandlers(bot: Bot, deps: BotDeps): void {
     await showPanel(ctx, workspaceFilesPanel(found.lang, found.workspace));
   });
 
-  bot.callbackQuery('ws:ops', async (ctx) => {
+  bot.callbackQuery(/^ws:file:sel:(.+)$/, async (ctx) => {
     const found = await requireWorkspace(ctx);
     if (!found) return;
-    await ctx.answerCallbackQuery();
-    await showPanel(ctx, workspaceOperationsPanel(found.lang, found.workspace));
-  });
-
-  bot.callbackQuery('ws:tools', async (ctx) => {
-    const found = await requireWorkspace(ctx);
-    if (!found) return;
-    await ctx.answerCallbackQuery();
-    await showPanel(ctx, operationsCatalogPanel(found.lang));
-  });
-
-  bot.callbackQuery(/^ws:cat:([a-z]+)$/, async (ctx) => {
-    const found = await requireWorkspace(ctx);
-    if (!found) return;
-    const category = ctx.callbackQuery.data?.slice('ws:cat:'.length);
-    if (
-      category !== 'organization' &&
-      category !== 'color' &&
-      category !== 'layout' &&
-      category !== 'personalization'
-    ) {
+    const id = /^ws:file:sel:(.+)$/.exec(ctx.callbackQuery.data ?? '')?.[1];
+    if (!id || !found.workspace.files.some((file) => file.id === id)) {
       await ctx.answerCallbackQuery();
       return;
     }
     await ctx.answerCallbackQuery();
-    await showPanel(ctx, operationsCatalogPanel(found.lang, category as OperationCategory));
+    await showPanel(ctx, fileActionsPanel(found.lang, found.workspace, id));
   });
 
-  bot.callbackQuery(/^ws:addop:([a-z]+)$/, async (ctx) => {
+  bot.callbackQuery('ws:repcancel', async (ctx) => {
     const found = await requireWorkspace(ctx);
     if (!found) return;
-    const { workspace, lang } = found;
-    if (workspace.status === 'processing') {
-      await ctx.answerCallbackQuery({ text: t(lang, 'ws.run.busy'), show_alert: true });
-      return;
-    }
-    const type = ctx.callbackQuery.data?.slice('ws:addop:'.length);
-    if (!type || !isOperationType(type)) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-    const operation = addOperation(workspace, type);
-    workspaces.touch(workspace.userId);
-    await ctx.answerCallbackQuery({
-      text: t(lang, 'ws.ops.added', { label: t(lang, operationLabelKey(type)) }),
-    });
-    await showPanel(
-      ctx,
-      operationConfigPanel(lang, workspace, workspace.operations.indexOf(operation), config),
-    );
-  });
-
-  bot.callbackQuery(/^ws:op:(conf|rm|up|dn):(\d+)$/, async (ctx) => {
-    const found = await requireWorkspace(ctx);
-    if (!found) return;
-    const { workspace, lang } = found;
-    const match = /^ws:op:(conf|rm|up|dn):(\d+)$/.exec(ctx.callbackQuery.data ?? '');
-    if (!match) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-    const action = match[1]!;
-    const index = Number(match[2]);
-
-    if (action === 'conf') {
-      await ctx.answerCallbackQuery();
-      await showPanel(ctx, operationConfigPanel(lang, workspace, index, config));
-      return;
-    }
-
-    if (action === 'rm') {
-      if (!removeOperation(workspace, index)) {
-        await ctx.answerCallbackQuery();
-        return;
-      }
-      await ctx.answerCallbackQuery({ text: t(lang, 'ws.ops.removed') });
-    } else {
-      if (!moveOperation(workspace, index, action === 'up' ? 'up' : 'down')) {
-        await ctx.answerCallbackQuery();
-        return;
-      }
-      await ctx.answerCallbackQuery();
-    }
-
-    workspaces.touch(workspace.userId);
-    await showPanel(ctx, workspaceOperationsPanel(lang, workspace));
-  });
-
-  bot.callbackQuery(/^ws:set:(\d+):(.+)$/, async (ctx) => {
-    const found = await requireWorkspace(ctx);
-    if (!found) return;
-    const { workspace, lang } = found;
-    if (workspace.status === 'processing') {
-      await ctx.answerCallbackQuery({ text: t(lang, 'ws.run.busy'), show_alert: true });
-      return;
-    }
-    const match = /^ws:set:(\d+):(.+)$/.exec(ctx.callbackQuery.data ?? '');
-    if (!match) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-    const index = Number(match[1]);
-    const action = match[2]!;
-    const operation = workspace.operations[index];
-    if (!operation || !applySetting(workspace, operation, action)) {
-      await ctx.answerCallbackQuery({ text: t(lang, 'ws.err.badSettings'), show_alert: true });
-      return;
-    }
-    workspaces.touch(workspace.userId);
-    await ctx.answerCallbackQuery();
-    await showPanel(ctx, operationConfigPanel(lang, workspace, index, config));
-  });
-
-  bot.callbackQuery('ws:clearops', async (ctx) => {
-    const found = await requireWorkspace(ctx);
-    if (!found) return;
-    clearOperations(found.workspace);
+    found.workspace.replacingFileId = null;
+    found.workspace.awaitingUpload = false;
     workspaces.touch(found.workspace.userId);
-    await ctx.answerCallbackQuery({ text: t(found.lang, 'ws.ops.cleared') });
-    await showPanel(ctx, workspaceOperationsPanel(found.lang, found.workspace));
-  });
-
-  bot.callbackQuery('ws:presets', async (ctx) => {
-    const found = await requireWorkspace(ctx);
-    if (!found) return;
     await ctx.answerCallbackQuery();
-    await showPanel(ctx, presetsPanel(found.lang));
-  });
-
-  bot.callbackQuery(/^ws:preset:([a-z]+)$/, async (ctx) => {
-    const found = await requireWorkspace(ctx);
-    if (!found) return;
-    const { workspace, lang } = found;
-    if (workspace.status === 'processing') {
-      await ctx.answerCallbackQuery({ text: t(lang, 'ws.run.busy'), show_alert: true });
-      return;
-    }
-    const id = ctx.callbackQuery.data?.slice('ws:preset:'.length);
-    if (!id || !isPresetId(id)) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-    applyPreset(workspace, id);
-    workspaces.touch(workspace.userId);
-    await ctx.answerCallbackQuery({
-      text: t(lang, 'ws.presets.applied', { name: presetLabel(lang, id) }),
-    });
-    await showPanel(ctx, workspaceOperationsPanel(lang, workspace));
-  });
-
-  bot.callbackQuery('ws:mode', async (ctx) => {
-    const found = await requireWorkspace(ctx);
-    if (!found) return;
-    await ctx.answerCallbackQuery();
-    await showPanel(ctx, modePanel(found.lang, found.workspace));
-  });
-
-  bot.callbackQuery(/^ws:mode:(c|i)$/, async (ctx) => {
-    const found = await requireWorkspace(ctx);
-    if (!found) return;
-    const { workspace, lang } = found;
-    if (workspace.status === 'processing') {
-      await ctx.answerCallbackQuery({ text: t(lang, 'ws.run.busy'), show_alert: true });
-      return;
-    }
-    workspace.mode = ctx.callbackQuery.data?.endsWith(':i') ? 'individual' : 'combine';
-    workspaces.touch(workspace.userId);
-    await ctx.answerCallbackQuery();
-    await showPanel(ctx, modePanel(lang, workspace));
-  });
-
-  bot.callbackQuery('ws:review', async (ctx) => {
-    const found = await requireWorkspace(ctx);
-    if (!found) return;
-    const review = reviewPanel(found.lang, found.workspace, config);
-    await ctx.answerCallbackQuery(
-      review.ok ? undefined : { text: t(found.lang, 'ws.run.notReady'), show_alert: true },
-    );
-    await showPanel(ctx, review.panel);
+    await showPanel(ctx, workspaceFilesPanel(found.lang, found.workspace));
   });
 
   bot.callbackQuery(/^ws:file:(rm|up|dn|rp):(.+)$/, async (ctx) => {
@@ -810,6 +660,7 @@ export function registerWorkspaceHandlers(bot: Bot, deps: BotDeps): void {
     const index = workspace.files.findIndex((file) => file.id === id);
     if (index < 0) {
       await ctx.answerCallbackQuery();
+      await showPanel(ctx, workspaceFilesPanel(lang, workspace));
       return;
     }
 
@@ -819,11 +670,7 @@ export function registerWorkspaceHandlers(bot: Bot, deps: BotDeps): void {
       workspace.awaitingUpload = true;
       workspaces.touch(workspace.userId);
       await ctx.answerCallbackQuery();
-      await editOrReply(
-        ctx,
-        t(lang, 'ws.files.replacePrompt', { name: file.name }),
-        new InlineKeyboard().text(t(lang, 'ws.btn.back'), 'ws:files'),
-      );
+      await showPanel(ctx, replacePromptPanel(lang, workspace, file.id));
       return;
     }
 
@@ -860,44 +707,366 @@ export function registerWorkspaceHandlers(bot: Bot, deps: BotDeps): void {
     workspace.files.splice(target, 0, file);
     workspaces.touch(workspace.userId);
     await ctx.answerCallbackQuery();
-    await showPanel(ctx, workspaceFilesPanel(lang, workspace));
+    await showPanel(ctx, fileActionsPanel(lang, workspace, file.id));
   });
 
-  bot.callbackQuery('ws:cancel', async (ctx) => {
-    if (!ctx.from || !ctx.chat) {
+  bot.callbackQuery('ws:ops', async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    await ctx.answerCallbackQuery();
+    await showPanel(ctx, workspaceOperationsPanel(found.lang, found.workspace));
+  });
+
+  bot.callbackQuery('ws:tools', async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    if (found.workspace.status === 'processing') {
+      await ctx.answerCallbackQuery({ text: t(found.lang, 'ws.run.busy'), show_alert: true });
+      return;
+    }
+    await ctx.answerCallbackQuery();
+    await showPanel(ctx, advancedToolsPanel(found.lang));
+  });
+
+  bot.callbackQuery(/^ws:cat:([a-z]+)$/, async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    const category = ctx.callbackQuery.data?.slice('ws:cat:'.length);
+    if (
+      category !== 'organization' &&
+      category !== 'color' &&
+      category !== 'layout' &&
+      category !== 'personalization'
+    ) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+    await ctx.answerCallbackQuery();
+    await showPanel(ctx, operationsCatalogPanel(found.lang, category as OperationCategory));
+  });
+
+  bot.callbackQuery(/^ws:addop:([a-z]+)$/, async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    const { workspace, lang } = found;
+    if (workspace.status === 'processing') {
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.run.busy'), show_alert: true });
+      return;
+    }
+    const type = ctx.callbackQuery.data?.slice('ws:addop:'.length);
+    if (!type || !isOperationType(type)) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+    if (workspace.files.length === 0) {
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.err.noFiles'), show_alert: true });
+      return;
+    }
+    workspace.presetId = null;
+    const operation = addOperation(workspace, type);
+    workspaces.touch(workspace.userId);
+    await ctx.answerCallbackQuery({
+      text: t(lang, 'ws.ops.added', { label: t(lang, operationLabelKey(type)) }),
+    });
+    await showPanel(
+      ctx,
+      operationConfigPanel(lang, workspace, workspace.operations.indexOf(operation), config),
+    );
+  });
+
+  bot.callbackQuery(/^ws:op:(conf|rm|up|dn):(\d+)$/, async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    const { workspace, lang } = found;
+    if (workspace.status === 'processing') {
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.run.busy'), show_alert: true });
+      return;
+    }
+    const match = /^ws:op:(conf|rm|up|dn):(\d+)$/.exec(ctx.callbackQuery.data ?? '');
+    if (!match) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+    const action = match[1]!;
+    const index = Number(match[2]);
+
+    if (action === 'conf') {
+      await ctx.answerCallbackQuery();
+      await showPanel(ctx, operationConfigPanel(lang, workspace, index, config));
+      return;
+    }
+
+    if (action === 'rm') {
+      if (!removeOperation(workspace, index)) {
+        await ctx.answerCallbackQuery();
+        return;
+      }
+      workspace.presetId = null;
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.ops.removed') });
+    } else {
+      if (!moveOperation(workspace, index, action === 'up' ? 'up' : 'down')) {
+        await ctx.answerCallbackQuery();
+        return;
+      }
+      workspace.presetId = null;
+      await ctx.answerCallbackQuery();
+    }
+
+    workspaces.touch(workspace.userId);
+    await showPanel(ctx, workspaceOperationsPanel(lang, workspace));
+  });
+
+  bot.callbackQuery(/^ws:set:(\d+):(.+)$/, async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    const { workspace, lang } = found;
+    if (workspace.status === 'processing') {
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.run.busy'), show_alert: true });
+      return;
+    }
+    const match = /^ws:set:(\d+):(.+)$/.exec(ctx.callbackQuery.data ?? '');
+    if (!match) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+    const index = Number(match[1]);
+    const action = match[2]!;
+    const operation = workspace.operations[index];
+    if (!operation || !applySetting(workspace, operation, action)) {
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.err.badSettings'), show_alert: true });
+      return;
+    }
+    workspaces.touch(workspace.userId);
+    await ctx.answerCallbackQuery();
+    await showPanel(ctx, operationConfigPanel(lang, workspace, index, config));
+  });
+
+  bot.callbackQuery('ws:clearops', async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    if (found.workspace.status === 'processing') {
+      await ctx.answerCallbackQuery({ text: t(found.lang, 'ws.run.busy'), show_alert: true });
+      return;
+    }
+    clearOperations(found.workspace);
+    found.workspace.presetId = null;
+    workspaces.touch(found.workspace.userId);
+    await ctx.answerCallbackQuery({ text: t(found.lang, 'ws.ops.cleared') });
+    await showWorkspace(ctx, found.workspace, found.lang);
+  });
+
+  bot.callbackQuery('ws:presets', async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    if (found.workspace.status === 'processing') {
+      await ctx.answerCallbackQuery({ text: t(found.lang, 'ws.run.busy'), show_alert: true });
+      return;
+    }
+    await ctx.answerCallbackQuery();
+    await showPanel(ctx, presetsPanel(found.lang, found.workspace));
+  });
+
+  bot.callbackQuery(/^ws:preset:([a-z]+)$/, async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    const { workspace, lang } = found;
+    if (workspace.status === 'processing') {
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.run.busy'), show_alert: true });
+      return;
+    }
+    if (workspace.files.length === 0) {
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.err.noFiles'), show_alert: true });
+      return;
+    }
+    const id = ctx.callbackQuery.data?.slice('ws:preset:'.length);
+    if (!id || !isPresetId(id)) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+    applyPreset(workspace, id);
+    workspaces.touch(workspace.userId);
+    await ctx.answerCallbackQuery({
+      text: t(lang, 'ws.presets.applied', { name: presetLabel(lang, id) }),
+    });
+    await showPanel(ctx, presetSummaryPanel(lang, workspace, config).panel);
+  });
+
+  bot.callbackQuery('ws:merge', async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    const { workspace, lang } = found;
+    if (workspace.status === 'processing') {
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.run.busy'), show_alert: true });
+      return;
+    }
+    if (workspace.files.length === 0) {
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.err.noFiles'), show_alert: true });
+      return;
+    }
+    applyPreset(workspace, 'original');
+    workspaces.touch(workspace.userId);
+    await ctx.answerCallbackQuery({ text: t(lang, 'ws.merge.applied') });
+    await showPanel(ctx, presetSummaryPanel(lang, workspace, config).panel);
+  });
+
+  bot.callbackQuery('ws:custom', async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    const { workspace, lang } = found;
+    if (workspace.status === 'processing') {
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.run.busy'), show_alert: true });
+      return;
+    }
+    if (workspace.files.length === 0) {
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.err.noFiles'), show_alert: true });
+      return;
+    }
+    if (!workspace.presetId && workspace.operations.length === 0) {
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.custom.noPreset'), show_alert: true });
+      return;
+    }
+    await ctx.answerCallbackQuery();
+    await showPanel(ctx, customSettingsPanel(lang, workspace));
+  });
+
+  bot.callbackQuery(/^ws:custom:(.+)$/, async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    const { workspace, lang } = found;
+    if (workspace.status === 'processing') {
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.run.busy'), show_alert: true });
+      return;
+    }
+    const action = ctx.callbackQuery.data?.slice('ws:custom:'.length) ?? '';
+    if (!applyPresetCustomization(workspace, action)) {
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.err.badSettings'), show_alert: true });
+      return;
+    }
+    workspaces.touch(workspace.userId);
+    await ctx.answerCallbackQuery();
+    await showPanel(ctx, customSettingsPanel(lang, workspace));
+  });
+
+  const showSummary = async (ctx: Context): Promise<void> => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    const summary = presetSummaryPanel(found.lang, found.workspace, config);
+    await ctx.answerCallbackQuery(
+      summary.ok ? undefined : { text: t(found.lang, 'ws.run.notReady'), show_alert: true },
+    );
+    await showPanel(ctx, summary.panel);
+  };
+
+  bot.callbackQuery('ws:summary', showSummary);
+  bot.callbackQuery('ws:review', showSummary);
+
+  bot.callbackQuery('ws:mode', async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    await ctx.answerCallbackQuery();
+    await showPanel(ctx, modePanel(found.lang, found.workspace));
+  });
+
+  bot.callbackQuery(/^ws:mode:(c|i)$/, async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    const { workspace, lang } = found;
+    if (workspace.status === 'processing') {
+      await ctx.answerCallbackQuery({ text: t(lang, 'ws.run.busy'), show_alert: true });
+      return;
+    }
+    workspace.mode = ctx.callbackQuery.data?.endsWith(':i') ? 'individual' : 'combine';
+    workspaces.touch(workspace.userId);
+    await ctx.answerCallbackQuery();
+    await showPanel(ctx, modePanel(lang, workspace));
+  });
+
+  bot.callbackQuery('ws:cancelrun', async (ctx) => {
+    if (!ctx.from) {
       await ctx.answerCallbackQuery();
       return;
     }
     const lang = langOf(ctx, deps);
-    const workspace = workspaces.clear(ctx.from.id);
-    if (!workspace) {
+    const workspace = workspaces.get(ctx.from.id);
+    if (workspace && workspace.chatId !== ctx.chat?.id) {
+      await ctx.answerCallbackQuery({
+        text: t(lang, 'ws.upload.otherChat'),
+        show_alert: true,
+      });
+      return;
+    }
+    if (!workspace || !(workspace.status === 'processing' || jobRunner.isActive(ctx.from.id))) {
       await ctx.answerCallbackQuery();
+      if (workspace) await showWorkspace(ctx, workspace, lang);
+      return;
+    }
+    workspace.cancelRequested = true;
+    jobRunner.cancel(ctx.from.id);
+    workspace.controller.abort();
+    workspaces.touch(workspace.userId);
+    await ctx.answerCallbackQuery({ text: t(lang, 'ws.run.cancelling') });
+  });
+
+  bot.callbackQuery('ws:cancel', async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    if (found.workspace.status === 'processing') {
+      await ctx.answerCallbackQuery({ text: t(found.lang, 'ws.run.busy'), show_alert: true });
+      return;
+    }
+    await ctx.answerCallbackQuery();
+    await showPanel(ctx, cancelConfirmPanel(found.lang));
+  });
+
+  bot.callbackQuery('ws:cancelkeep', async (ctx) => {
+    const found = await requireWorkspace(ctx);
+    if (!found) return;
+    found.workspace.replacingFileId = null;
+    found.workspace.awaitingUpload = false;
+    workspaces.touch(found.workspace.userId);
+    await ctx.answerCallbackQuery();
+    await showPanel(ctx, moreOptionsPanel(found.lang, found.workspace));
+  });
+
+  bot.callbackQuery('ws:cancelconfirm', async (ctx) => {
+    if (!ctx.from) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+    const lang = langOf(ctx, deps);
+    const workspace = workspaces.get(ctx.from.id);
+    if (workspace && workspace.chatId !== ctx.chat?.id) {
+      await ctx.answerCallbackQuery({
+        text: t(lang, 'ws.upload.otherChat'),
+        show_alert: true,
+      });
+      return;
+    }
+    const removed = workspaces.clear(ctx.from.id);
+    await ctx.answerCallbackQuery();
+    if (!removed) {
       await editOrReply(
         ctx,
         t(lang, 'ws.expired'),
-        new InlineKeyboard().text(t(lang, 'ws.run.newWorkspace'), 'ws:new').row().text(
-          t(lang, 'ws.btn.menu'),
-          'menu:home',
-        ),
+        new InlineKeyboard()
+          .text(t(lang, 'ws.run.newWorkspace'), 'ws:new')
+          .row()
+          .text(t(lang, 'ws.btn.menu'), 'menu:home'),
       );
       return;
     }
-
-    if (workspace.status === 'processing') {
-      workspace.cancelRequested = true;
-      jobRunner.cancel(ctx.from.id);
-      workspace.controller.abort();
+    if (removed.status === 'processing') {
+      removed.cancelRequested = true;
+      jobRunner.cancel(removed.userId);
+      removed.controller.abort();
     }
-
     await Promise.all(
-      workspace.files.map((file) =>
+      removed.files.map((file) =>
         cleanupFile(file.path).catch((error: unknown) => {
-          logger.warn('temp_cleanup_failed', { userId: workspace.userId }, error);
+          logger.warn('temp_cleanup_failed', { userId: removed.userId }, error);
         }),
       ),
     );
-
-    await ctx.answerCallbackQuery();
     await editOrReply(
       ctx,
       t(lang, 'ws.run.expiredNote'),
@@ -915,6 +1084,7 @@ export function registerWorkspaceHandlers(bot: Bot, deps: BotDeps): void {
   bot.callbackQuery('ws:retry', async (ctx) => {
     await runWorkspace(ctx, bot, deps);
   });
+
 
   async function runWorkspace(
     ctx: Context,
@@ -945,10 +1115,10 @@ export function registerWorkspaceHandlers(bot: Bot, deps: BotDeps): void {
       return;
     }
 
-    const review = reviewPanel(lang, workspace, config);
-    if (!review.ok) {
+    const summary = presetSummaryPanel(lang, workspace, config);
+    if (!summary.ok) {
       await ctx.answerCallbackQuery({ text: t(lang, 'ws.run.notReady'), show_alert: true });
-      await showPanel(ctx, review.panel);
+      await showPanel(ctx, summary.panel);
       return;
     }
 
@@ -1074,9 +1244,8 @@ export function registerWorkspaceHandlers(bot: Bot, deps: BotDeps): void {
           fileCount: result.outputs.length,
           pages: result.totalPages,
           tools: result.operationCount,
-          startedAt,
-          completedAt,
           outputBytes: result.outputBytes,
+          durationMs: completedAt - startedAt,
         });
 
         if (progress) {
@@ -1111,11 +1280,13 @@ export function registerWorkspaceHandlers(bot: Bot, deps: BotDeps): void {
             workspace.cancelRequested = false;
             workspace.processingCompletedAt = Date.now();
             workspace.lastError = null;
+            workspace.controller = new AbortController();
             workspaces.touch(userId);
           }
-          await editProgress(
-            [t(lang, 'ws.run.cancelled'), '', t(lang, 'ws.run.cancelledKept')].join('\n'),
+          const cancelledText = [t(lang, 'ws.run.cancelled'), '', t(lang, 'ws.run.cancelledKept')].join(
+            '\n',
           );
+          await editProgress(cancelledText);
           if (progress && stillActive) {
             try {
               await botInstance.api.editMessageReplyMarkup(chatId, progress.message_id, {
@@ -1124,6 +1295,10 @@ export function registerWorkspaceHandlers(bot: Bot, deps: BotDeps): void {
             } catch {
               // The progress message may no longer exist.
             }
+          } else if (!progress && stillActive) {
+            await botInstance.api
+              .sendMessage(chatId, cancelledText, { reply_markup: retryKeyboard(lang) })
+              .catch(() => undefined);
           }
         } else {
           const message = fileErrorMessage(lang, error, {
@@ -1156,6 +1331,12 @@ export function registerWorkspaceHandlers(bot: Bot, deps: BotDeps): void {
                 })
                 .catch(() => undefined);
             }
+          } else {
+            await botInstance.api
+              .sendMessage(chatId, failureText(lang, message, failedLabel), {
+                reply_markup: retryKeyboard(lang),
+              })
+              .catch(() => undefined);
           }
         }
       } finally {
@@ -1211,7 +1392,23 @@ export function registerWorkspaceHandlers(bot: Bot, deps: BotDeps): void {
     const chatId = ctx.chat.id;
     const workspace = workspaces.get(userId);
 
-    if (!workspace) return next();
+    if (!workspace) {
+      if (
+        deps.uploadSessions.isActive(userId) ||
+        deps.mergeSessions.get(userId) ||
+        deps.toolSessions.get(userId)
+      ) {
+        return next();
+      }
+      const lang = langOf(ctx, deps);
+      await ctx.reply(t(lang, 'ws.upload.noWorkspace'), {
+        reply_markup: new InlineKeyboard()
+          .text(t(lang, 'menu.newWorkspace'), 'ws:new')
+          .row()
+          .text(t(lang, 'ws.btn.menu'), 'menu:home'),
+      });
+      return;
+    }
     if (workspace.chatId !== chatId) {
       const lang = langOf(ctx, deps);
       await ctx.reply(t(lang, 'ws.upload.otherChat'));

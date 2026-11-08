@@ -490,11 +490,11 @@ test('presets replace operations but keep uploaded files editable', () => {
   ]);
 
   workspace.operations = [{ id: 'o1', type: 'rotate', angle: 90, scope: 'all' }];
-  const operations = applyPreset(workspace, 'print');
+  const operations = applyPreset(workspace, 'paper');
 
   assert.equal(workspace.files.length, 1);
   assert.equal(operations.length, 2);
-  assert.equal(operations[0]?.type, 'gray');
+  assert.equal(operations[0]?.type, 'bw');
   assert.equal(operations[1]?.type, 'nup');
   assert.equal(operations[0]?.id, 'o1');
   assert.equal(workspace.operations[1]?.id, 'o2');
@@ -505,7 +505,7 @@ test('presets replace operations but keep uploaded files editable', () => {
     rasterMaxPages: 30,
     mergeMaxFiles: 10,
   });
-  assert.equal(simulation.finalFiles[0]?.pages, 4);
+  assert.equal(simulation.finalFiles[0]?.pages, 2);
 });
 
 test('workspace UI renders bilingual status, controls, and operation configuration', () => {
@@ -530,25 +530,24 @@ test('workspace UI renders bilingual status, controls, and operation configurati
 
   const english = workspacePanel('en', workspace, appConfig);
   assert.match(english.text, /PDF Workspace/);
-  assert.match(english.text, /Files \(1\)/);
-  assert.match(english.text, /Pipeline \(2\)/);
+  assert.match(english.text, /Files: 1 · Pages: 4/);
+  assert.match(english.text, /Steps \(2\)/);
   assert.match(english.text, /Watermark: DRAFT/);
   const callbacks = english.keyboard.inline_keyboard.flat().map((button) => ('callback_data' in button ? button.callback_data : ''));
   assert.ok(callbacks.includes('ws:run'));
-  assert.ok(callbacks.includes('ws:review'));
-  assert.ok(callbacks.includes('ws:add'));
+  assert.ok(callbacks.includes('ws:more'));
+  assert.ok(callbacks.includes('ws:presets'));
 
   const bengali = workspacePanel('bn', workspace, appConfig);
-  assert.match(bengali.text, /পাইপলাইন \(2\)/);
+  assert.match(bengali.text, /ধাপ \(2\)/);
   assert.match(bengali.text, /ওয়াটারমার্ক: DRAFT/);
   const bengaliButtons = bengali.keyboard.inline_keyboard.flat();
-  assert.ok(bengaliButtons.some((button) => button.text.includes('প্রসেস')));
+  assert.ok(bengaliButtons.some((button) => button.text.includes('Process Now')));
 
   const menuText = mainMenuText('bn', 'Rahim', workspace);
-  assert.match(menuText, /সক্রিয় workspace: 1টি ফাইল, 2টি অপারেশন/);
+  assert.match(menuText, /সক্রিয় workspace: 1টি ফাইল, 2টি ধাপ/);
   const menu = mainMenuKeyboard('bn', appConfig, false, true).inline_keyboard.flat();
-  assert.ok(menu.some((button) => button.text === '🆕 নতুন PDF Workspace'));
-  assert.ok(menu.some((button) => button.text === '📂 আমার বর্তমান Workspace'));
+  assert.ok(menu.some((button) => button.text === '📂 PDF প্রসেসিং চালিয়ে যান'));
 });
 
 test('pipeline cleanup removes intermediates and cancellation aborts before delivery', async () => {

@@ -51,6 +51,7 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions): WorkspaceS
         chatId,
         files: [],
         mode: 'combine',
+        presetId: null,
         operations: [],
         status: 'collecting',
         awaitingUpload: true,

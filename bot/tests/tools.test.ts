@@ -11,7 +11,7 @@ import { createTempWorkDir } from '../src/files/paths.js';
 import { createToolSessionStore } from '../src/files/tool-session.js';
 import type { ToolSession, ToolSettings } from '../src/files/tool-session.js';
 import { cleanupToolSession } from '../src/bot/handlers/tools.js';
-import { mainMenuKeyboard, colorToolsKeyboard } from '../src/bot/ui.js';
+import { mainMenuKeyboard } from '../src/bot/ui.js';
 import {
   inputPromptKeyboard,
   inputPromptText,
@@ -475,13 +475,10 @@ test('every advertised tool is defined and the menu exposes it', () => {
   assert.equal(isToolId('process'), false);
 
   const menu = callbackData(mainMenuKeyboard('en', config(), false, false));
-  for (const action of ['menu:new', 'menu:tools', 'menu:language'] as const) {
+  for (const action of ['menu:new', 'menu:help', 'menu:language'] as const) {
     assert.ok(menu.includes(action), `menu should contain ${action}`);
   }
-  const colourMenu = callbackData(colorToolsKeyboard());
-  for (const tool of ['gray', 'bw', 'invert', 'clear'] as const) {
-    assert.ok(colourMenu.includes(`tool:${tool}`), `colour menu should contain tool:${tool}`);
-  }
+  assert.ok(menu.includes('menu:tools') === false, 'advanced tools stay inside the workspace');
   assert.ok(menu.includes('admin:home') === false, 'regular users must not see admin');
   assert.ok(callbackData(mainMenuKeyboard('en', config(), true, false)).includes('admin:home'));
 });

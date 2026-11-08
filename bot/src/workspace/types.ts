@@ -2,6 +2,7 @@ import type { NupSettings } from '../pdf/nup.js';
 
 export type WorkspaceMode = 'combine' | 'individual';
 export type WorkspaceStatus = 'collecting' | 'ready' | 'processing' | 'failed';
+export type PresetId = 'paper' | 'compact' | 'presentation' | 'original';
 
 export const MAX_WORKSPACE_FILES = 10;
 export const MAX_PIPELINE_FILES = 40;
@@ -176,6 +177,7 @@ export interface Workspace {
   chatId: number;
   files: WorkspaceFile[];
   mode: WorkspaceMode;
+  presetId?: PresetId | null;
   operations: WorkspaceOperation[];
   status: WorkspaceStatus;
   awaitingUpload: boolean;

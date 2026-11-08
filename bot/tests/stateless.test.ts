@@ -226,15 +226,16 @@ test('processPdf refuses to start when already cancelled', async () => {
   }
 });
 
-test('rendered UI keeps compression, limits, and no persistent file history', () => {
+test('rendered UI keeps limits and no persistent file history', () => {
   const kb = mainMenuKeyboard('en', config(), false, false);
   const buttons = kb.inline_keyboard.flat();
 
-  assert.equal(buttons.some((button) => button.text === 'Compress PDF'), true);
+  assert.equal(buttons.length, 4);
+  assert.equal(buttons.some((button) => button.text === 'Compress PDF'), false);
   assert.equal(buttons.some((button) => button.text === '📁 My Files'), false);
 
   const help = helpText('en', config());
-  assert.match(help, /Upload limit: 19 MB/);
+  assert.match(help, /up to 19 MB/);
   assert.match(help, /deleted after delivery/);
   assert.match(help, /PDF24/);
 });

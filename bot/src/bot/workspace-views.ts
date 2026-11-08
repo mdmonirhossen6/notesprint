@@ -1,7 +1,6 @@
 import { InlineKeyboard } from 'grammy';
 import type { AppConfig } from '../config.js';
 import { formatBytes } from '../lib/format.js';
-import { formatDhakaTimestamp } from '../lib/time.js';
 import { formatPageList } from '../pdf/organize.js';
 import {
   OPERATION_CATEGORIES,
@@ -10,12 +9,8 @@ import {
   operationLabelKey,
   simulateWorkspace,
 } from '../workspace/operations.js';
-import type {
-  OperationCategory,
-  WorkspaceIssue,
-  WorkspaceIssueCode,
-} from '../workspace/operations.js';
-import { PRESETS, PRESET_IDS } from '../workspace/presets.js';
+import type { OperationCategory, WorkspaceIssue } from '../workspace/operations.js';
+import { PRESETS, PRESET_IDS, readPresetSettings } from '../workspace/presets.js';
 import type { PresetId } from '../workspace/presets.js';
 import {
   MAX_PIPELINE_FILES,
@@ -28,7 +23,6 @@ import type {
   RemainingPagesConfig,
   Workspace,
   WorkspaceOperation,
-  WorkspaceStatus,
 } from '../workspace/types.js';
 import { COMPRESSION_URL } from './compression.js';
 import { formatDuration, languageLabel, translate } from './i18n.js';
@@ -38,13 +32,6 @@ export interface Panel {
   text: string;
   keyboard: InlineKeyboard;
 }
-
-const STATUS_KEYS: Record<WorkspaceStatus, TranslationKey> = {
-  collecting: 'ws.status.collecting',
-  ready: 'ws.status.ready',
-  processing: 'ws.status.processing',
-  failed: 'ws.status.failed',
-};
 
 function t(lang: Lang, key: TranslationKey, params?: Record<string, string | number>): string {
   return translate(lang, key, params);
@@ -173,6 +160,47 @@ function operationLine(lang: Lang, operation: WorkspaceOperation, index: number)
   });
 }
 
+function colorLabel(lang: Lang, color: 'none' | 'gray' | 'bw'): string {
+  if (color === 'bw') return t(lang, 'ws.custom.colorBw');
+  if (color === 'gray') return t(lang, 'ws.custom.colorGray');
+  return t(lang, 'ws.custom.colorNone');
+}
+
+function layoutLabel(lang: Lang, perPage: number): string {
+  return perPage <= 1
+    ? t(lang, 'ws.value.normalSheet')
+    : t(lang, 'ws.value.perSheet', { count: perPage });
+}
+
+function paperLabel(lang: Lang, workspace: Workspace): string {
+  const settings = readPresetSettings(workspace);
+  if (settings.perPage <= 1) return t(lang, 'ws.value.originalSize');
+  return `${settings.paper.toUpperCase()} · ${valueLabel(lang, settings.orientation)}`;
+}
+
+function hasPageNumbers(workspace: Workspace): boolean {
+  if (readPresetSettings(workspace).pageNumbers) return true;
+  return workspace.operations.some(
+    (operation) => operation.type === 'footer' && operation.pageNumbers,
+  );
+}
+
+function toggleLabel(lang: Lang, enabled: boolean): string {
+  return t(lang, enabled ? 'ws.cfg.on' : 'ws.cfg.off');
+}
+
+function fileIndex(workspace: Workspace, fileId: string): number {
+  return workspace.files.findIndex((file) => file.id === fileId);
+}
+
+export function presetLabel(lang: Lang, id: PresetId): string {
+  return t(lang, PRESETS[id].labelKey);
+}
+
+function presetButtonLabel(lang: Lang, id: PresetId, selected: boolean): string {
+  return `${presetLabel(lang, id)}${selected ? ' ✅' : ''}`;
+}
+
 export function workspacePanel(
   lang: Lang,
   workspace: Workspace,
@@ -180,33 +208,22 @@ export function workspacePanel(
   now = Date.now(),
 ): Panel {
   const totals = workspaceTotals(workspace);
+  const processing = workspace.status === 'processing';
   const keyboard = new InlineKeyboard();
   const lines = [
     t(lang, 'ws.title'),
-    `${t(lang, STATUS_KEYS[workspace.status])} · ${t(lang, 'ws.mode', {
-      mode: modeLabel(lang, workspace),
-    })}`,
     '',
-    t(lang, 'ws.createdAt', {
-      time: formatDhakaTimestamp(new Date(workspace.createdAt)),
+    t(lang, 'ws.summaryLine', {
+      files: workspace.files.length,
+      pages: totals.pages,
+      size: formatBytes(totals.bytes),
     }),
   ];
 
-  if (workspace.uploadStartedAt) {
-    lines.push(
-      t(lang, 'ws.uploadedAt', {
-        time: formatDhakaTimestamp(new Date(workspace.uploadStartedAt)),
-      }),
-    );
-  }
-
-  lines.push('', t(lang, 'ws.files', { count: workspace.files.length }));
-
   if (workspace.files.length === 0) {
     lines.push(
-      t(lang, 'ws.noFiles'),
       '',
-      t(lang, 'ws.created'),
+      t(lang, 'ws.noFiles'),
       '',
       t(lang, 'ws.uploadPrompt', {
         maxFiles: MAX_WORKSPACE_FILES,
@@ -216,6 +233,7 @@ export function workspacePanel(
       }),
     );
   } else {
+    lines.push('');
     workspace.files.forEach((file, index) => {
       lines.push(
         t(lang, 'ws.fileLine', {
@@ -226,64 +244,317 @@ export function workspacePanel(
         }),
       );
     });
+    if (workspace.awaitingUpload) {
+      lines.push('', t(lang, 'ws.upload.sendNow'), t(lang, 'ws.upload.moreHint'));
+    }
+  }
+
+  if (processing) {
+    lines.push('', t(lang, 'ws.status.processingNote'));
+  } else if (workspace.status === 'failed' && workspace.lastError) {
+    lines.push('', workspace.lastError);
+  } else if (workspace.files.length > 0) {
+    if (workspace.presetId) {
+      lines.push(
+        '',
+        t(lang, 'ws.presetSelected', { name: presetLabel(lang, workspace.presetId) }),
+      );
+    }
+    if (workspace.operations.length > 0) {
+      lines.push('', t(lang, 'ws.pipeline', { count: workspace.operations.length }));
+      for (const operation of workspace.operations) {
+        lines.push(`• ${operationSummary(lang, operation)}`);
+      }
+    } else if (!workspace.presetId) {
+      lines.push('', t(lang, 'ws.choosePreset'));
+    }
+  }
+
+  lines.push('', t(lang, 'ws.expiresIn', { minutes: workspaceExpiryMinutes(workspace, now) }));
+
+  if (processing) {
+    keyboard
+      .text(t(lang, 'ws.btn.cancelRun'), 'ws:cancelrun')
+      .row()
+      .text(t(lang, 'ws.btn.menu'), 'menu:home');
+    return { text: lines.join('\n'), keyboard };
+  }
+
+  if (workspace.status === 'failed') {
+    keyboard
+      .text(t(lang, 'ws.btn.retry'), 'ws:retry')
+      .text(t(lang, 'ws.btn.more'), 'ws:more')
+      .row()
+      .text(t(lang, 'ws.btn.menu'), 'menu:home');
+    return { text: lines.join('\n'), keyboard };
+  }
+
+  if (workspace.files.length === 0) {
+    keyboard
+      .text(t(lang, 'ws.btn.add'), 'ws:add')
+      .row()
+      .text(t(lang, 'ws.btn.more'), 'ws:more')
+      .text(t(lang, 'ws.btn.menu'), 'menu:home');
+    return { text: lines.join('\n'), keyboard };
+  }
+
+  if (workspace.presetId) {
+    keyboard
+      .text(t(lang, 'ws.btn.processNow'), 'ws:run')
+      .row()
+      .text(t(lang, 'ws.btn.custom'), 'ws:custom')
+      .text(t(lang, 'ws.btn.changePreset'), 'ws:presets')
+      .row()
+      .text(t(lang, 'ws.btn.more'), 'ws:more')
+      .text(t(lang, 'ws.btn.menu'), 'menu:home');
+    return { text: lines.join('\n'), keyboard };
+  }
+
+  if (workspace.operations.length > 0) {
+    keyboard
+      .text(t(lang, 'ws.btn.processNow'), 'ws:run')
+      .row()
+      .text(t(lang, 'ws.btn.changePreset'), 'ws:presets')
+      .text(t(lang, 'ws.btn.more'), 'ws:more')
+      .row()
+      .text(t(lang, 'ws.btn.menu'), 'menu:home');
+    return { text: lines.join('\n'), keyboard };
+  }
+
+  for (let index = 0; index < PRESET_IDS.length; index += 2) {
+    const first = PRESET_IDS[index]!;
+    const second = PRESET_IDS[index + 1];
+    keyboard.text(t(lang, PRESETS[first].labelKey), `ws:preset:${first}`);
+    if (second) keyboard.text(t(lang, PRESETS[second].labelKey), `ws:preset:${second}`);
+    keyboard.row();
+  }
+
+  keyboard
+    .text(t(lang, 'ws.btn.more'), 'ws:more')
+    .text(t(lang, 'ws.btn.menu'), 'menu:home');
+
+  return { text: lines.join('\n'), keyboard };
+}
+
+export function presetSummaryPanel(
+  lang: Lang,
+  workspace: Workspace,
+  config: AppConfig,
+): { panel: Panel; ok: boolean; issue?: WorkspaceIssue } {
+  const totals = workspaceTotals(workspace);
+  const settings = readPresetSettings(workspace);
+  let issue: WorkspaceIssue | undefined;
+  let simulation: ReturnType<typeof simulateWorkspace> | null = null;
+
+  try {
+    simulation = simulateWorkspace(workspace, remainingConfig(config));
+  } catch (error) {
+    issue = error instanceof WorkspaceValidationError ? error.issue : undefined;
+  }
+
+  const ok = issue === undefined && simulation !== null;
+  const name = workspace.presetId
+    ? presetLabel(lang, workspace.presetId)
+    : t(lang, 'ws.review.title');
+  const lines = [
+    workspace.presetId ? t(lang, 'ws.summary.title', { name }) : name,
+    '',
+    t(lang, 'ws.summary.filesLine', {
+      files: workspace.files.length,
+      pages: totals.pages,
+      size: formatBytes(totals.bytes),
+    }),
+    '',
+    t(lang, 'ws.summary.settings'),
+    t(lang, 'ws.summary.merge', {
+      value: t(
+        lang,
+        workspace.mode === 'combine' && workspace.files.length > 1 ? 'ws.value.yes' : 'ws.value.no',
+      ),
+    }),
+    t(lang, 'ws.summary.color', { value: colorLabel(lang, settings.color) }),
+    t(lang, 'ws.summary.layout', { value: layoutLabel(lang, settings.perPage) }),
+    t(lang, 'ws.summary.paper', { value: paperLabel(lang, workspace) }),
+    t(lang, 'ws.summary.numbers', {
+      value: t(lang, hasPageNumbers(workspace) ? 'ws.value.yes' : 'ws.value.no'),
+    }),
+  ];
+
+  if (simulation) {
     lines.push(
-      '',
-      t(lang, 'ws.total', {
-        pages: totals.pages,
-        size: formatBytes(totals.bytes),
+      t(lang, 'ws.summary.output', {
+        value: t(
+          lang,
+          simulation.finalFiles.length <= 1 ? 'ws.summary.outputOne' : 'ws.summary.outputZip',
+        ),
       }),
     );
   }
 
-  lines.push('', t(lang, 'ws.pipeline', { count: workspace.operations.length }));
-
-  if (workspace.operations.length === 0) {
-    lines.push(t(lang, 'ws.noPipeline'));
-  } else {
-    workspace.operations.forEach((operation, index) => {
-      lines.push(operationLine(lang, operation, index));
-    });
+  if (settings.color === 'none' && settings.perPage <= 1) {
+    lines.push('', t(lang, 'ws.summary.plain'));
+  }
+  if (workspace.mode === 'combine' && workspace.files.length > 1) {
+    lines.push(t(lang, 'ws.summary.mergeNote'));
+  }
+  if (workspace.operations.length === 0 && ok) {
+    lines.push('', t(lang, 'ws.review.noOps'));
+  }
+  if (issue) {
+    lines.push('', issueText(lang, issue, workspace, config));
+  } else if (simulation && simulation.warnings.length > 0) {
+    lines.push('', t(lang, 'ws.review.warnings'));
+    for (const warning of simulation.warnings) {
+      lines.push(`• ${t(lang, warning.key, warning.params)}`);
+    }
   }
 
-  if (workspace.status === 'failed' && workspace.lastError) {
-    lines.push('', workspace.lastError);
+  const keyboard = new InlineKeyboard();
+  if (ok) keyboard.text(t(lang, 'ws.btn.processNow'), 'ws:run').row();
+  if (workspace.presetId) {
+    keyboard
+      .text(t(lang, 'ws.btn.custom'), 'ws:custom')
+      .text(t(lang, 'ws.btn.changePreset'), 'ws:presets')
+      .row();
   }
+  if (!ok || !workspace.presetId) {
+    keyboard.text(t(lang, 'ws.btn.tools'), 'ws:tools').row();
+  }
+  keyboard.text(t(lang, 'ws.btn.back'), 'ws:back').text(t(lang, 'ws.btn.menu'), 'menu:home');
 
-  lines.push(
-    '',
-    t(lang, 'ws.expiresIn', { minutes: workspaceExpiryMinutes(workspace, now) }),
-    '',
-    t(lang, 'ws.restartNote'),
-    t(lang, 'ws.privateNote'),
-  );
+  return {
+    panel: { text: lines.join('\n'), keyboard },
+    ok,
+    ...(issue ? { issue } : {}),
+  };
+}
 
-  keyboard
-    .text(t(lang, 'ws.btn.add'), 'ws:add')
-    .text(t(lang, 'ws.btn.tools'), 'ws:tools')
+
+export function customSettingsPanel(lang: Lang, workspace: Workspace): Panel {
+  const settings = readPresetSettings(workspace);
+  const keyboard = new InlineKeyboard()
+    .text(t(lang, 'ws.custom.colorBw'), 'ws:custom:color:bw')
+    .text(t(lang, 'ws.custom.colorGray'), 'ws:custom:color:gray')
+    .text(t(lang, 'ws.custom.colorNone'), 'ws:custom:color:none')
     .row();
 
-  if (workspace.files.length > 0) {
+  keyboard.text(t(lang, 'ws.value.normalSheet'), 'ws:custom:layout:1');
+  ([2, 4, 6, 9] as const).forEach((value) => {
+    keyboard.text(String(value), `ws:custom:layout:${value}`);
+  });
+  keyboard.row();
+
+  if (settings.perPage > 1) {
+    (['a4', 'a3', 'a5', 'letter', 'legal'] as const).forEach((value) => {
+      keyboard.text(value.toUpperCase(), `ws:custom:paper:${value}`);
+    });
+    keyboard.row();
+
+    (['portrait', 'landscape', 'auto'] as const).forEach((value) => {
+      keyboard.text(valueLabel(lang, value), `ws:custom:orientation:${value}`);
+    });
+    keyboard.row();
+
+    (['compact', 'normal', 'wide'] as const).forEach((value) => {
+      keyboard.text(valueLabel(lang, value), `ws:custom:margin:${value}`);
+    });
+    keyboard.row();
+
     keyboard
-      .text(t(lang, 'ws.btn.review'), 'ws:review')
-      .text(t(lang, 'ws.btn.process'), 'ws:run')
+      .text(
+        `${t(lang, 'ws.custom.separators')}: ${toggleLabel(lang, settings.separators)}`,
+        `ws:custom:sep:${settings.separators ? 0 : 1}`,
+      )
+      .text(
+        `${t(lang, 'ws.custom.pageNumbers')}: ${toggleLabel(lang, settings.pageNumbers)}`,
+        `ws:custom:pn:${settings.pageNumbers ? 0 : 1}`,
+      )
       .row();
   }
 
   keyboard
+    .text(t(lang, 'ws.custom.done'), 'ws:summary')
+    .text(t(lang, 'ws.btn.back'), 'ws:back');
+
+  const lines = [
+    t(lang, 'ws.custom.title'),
+    '',
+    t(lang, 'ws.custom.hint'),
+    '',
+    `${t(lang, 'ws.custom.color')}: ${colorLabel(lang, settings.color)}`,
+    `${t(lang, 'ws.custom.layout')}: ${layoutLabel(lang, settings.perPage)}`,
+  ];
+
+  if (settings.perPage > 1) {
+    lines.push(
+      `${t(lang, 'ws.custom.paper')}: ${settings.paper.toUpperCase()}`,
+      `${t(lang, 'ws.custom.orientation')}: ${valueLabel(lang, settings.orientation)}`,
+      `${t(lang, 'ws.custom.margins')}: ${valueLabel(lang, settings.margin)}`,
+      `${t(lang, 'ws.custom.separators')}: ${toggleLabel(lang, settings.separators)}`,
+      `${t(lang, 'ws.custom.pageNumbers')}: ${toggleLabel(lang, settings.pageNumbers)}`,
+    );
+  }
+
+  lines.push('', t(lang, 'ws.custom.note'));
+
+  return { text: lines.join('\n'), keyboard };
+}
+
+export function moreOptionsPanel(lang: Lang, workspace: Workspace): Panel {
+  const keyboard = new InlineKeyboard()
+    .text(t(lang, 'ws.btn.add'), 'ws:add')
     .text(t(lang, 'ws.btn.files'), 'ws:files')
-    .text(t(lang, 'ws.btn.ops'), 'ws:ops')
     .row()
+    .text(t(lang, 'ws.btn.tools'), 'ws:tools')
     .text(t(lang, 'ws.btn.presets'), 'ws:presets')
-    .text(t(lang, 'ws.btn.mode'), 'ws:mode')
     .row();
 
   if (workspace.operations.length > 0) {
-    keyboard.text(t(lang, 'ws.btn.clearPipeline'), 'ws:clearops').row();
+    keyboard.text(t(lang, 'ws.btn.ops'), 'ws:ops').row();
   }
 
-  keyboard.text(t(lang, 'ws.btn.cancel'), 'ws:cancel').text(t(lang, 'ws.btn.menu'), 'menu:home');
+  keyboard
+    .text(t(lang, 'ws.btn.mode'), 'ws:mode')
+    .row()
+    .text(t(lang, 'ws.btn.cancel'), 'ws:cancel')
+    .row()
+    .text(t(lang, 'ws.btn.back'), 'ws:back')
+    .text(t(lang, 'ws.btn.menu'), 'menu:home');
+
+  const lines = [t(lang, 'ws.more.title'), '', t(lang, 'ws.more.hint')];
+  if (workspace.awaitingUpload) {
+    lines.push('', t(lang, 'ws.upload.sendNow'));
+  }
 
   return { text: lines.join('\n'), keyboard };
+}
+
+export function presetsPanel(
+  lang: Lang,
+  workspace: Workspace,
+  backAction = 'ws:back',
+): Panel {
+  const keyboard = new InlineKeyboard();
+  for (const id of PRESET_IDS) {
+    keyboard
+      .text(presetButtonLabel(lang, id, workspace.presetId === id), `ws:preset:${id}`)
+      .row();
+  }
+  keyboard.text(t(lang, 'ws.btn.back'), backAction).text(t(lang, 'ws.btn.menu'), 'menu:home');
+
+  const text = [
+    t(lang, 'ws.presets.title'),
+    '',
+    t(lang, 'ws.presets.hint'),
+    '',
+    ...PRESET_IDS.map(
+      (id) => `${presetLabel(lang, id)} — ${t(lang, PRESETS[id].descriptionKey)}`,
+    ),
+    '',
+    t(lang, 'ws.presets.cost'),
+  ].join('\n');
+
+  return { text, keyboard };
 }
 
 export function workspaceFilesPanel(lang: Lang, workspace: Workspace): Panel {
@@ -294,21 +565,17 @@ export function workspaceFilesPanel(lang: Lang, workspace: Workspace): Panel {
   if (workspace.files.length === 0) {
     lines.push(t(lang, 'ws.noFiles'));
   } else {
+    lines.push(t(lang, 'ws.files.pick'));
     workspace.files.forEach((file, index) => {
       lines.push(
-        t(lang, 'ws.files.reorder', {
+        t(lang, 'ws.fileLine', {
+          index: index + 1,
           name: file.name,
           pages: file.pages,
           size: formatBytes(file.sizeBytes),
         }),
-        `${index + 1} / ${workspace.files.length}`,
       );
-      keyboard
-        .text('⬆️', `ws:file:up:${file.id}`)
-        .text('⬇️', `ws:file:dn:${file.id}`)
-        .text('🔄', `ws:file:rp:${file.id}`)
-        .text('🗑', `ws:file:rm:${file.id}`)
-        .row();
+      keyboard.text(`${index + 1}. ${file.name}`.slice(0, 60), `ws:file:sel:${file.id}`).row();
     });
     lines.push('', t(lang, 'ws.total', { pages: totals.pages, size: formatBytes(totals.bytes) }));
   }
@@ -322,65 +589,105 @@ export function workspaceFilesPanel(lang: Lang, workspace: Workspace): Panel {
   return { text: lines.join('\n'), keyboard };
 }
 
-export function workspaceOperationsPanel(lang: Lang, workspace: Workspace): Panel {
+export function fileActionsPanel(lang: Lang, workspace: Workspace, fileId: string): Panel {
+  const index = fileIndex(workspace, fileId);
+  const file = workspace.files[index];
+  if (!file) return workspaceFilesPanel(lang, workspace);
+
   const keyboard = new InlineKeyboard();
-  const lines = [t(lang, 'ws.ops.title'), ''];
+  if (index > 0) keyboard.text('⬆️', `ws:file:up:${file.id}`);
+  if (index < workspace.files.length - 1) keyboard.text('⬇️', `ws:file:dn:${file.id}`);
+  if (index > 0 || index < workspace.files.length - 1) keyboard.row();
 
-  if (workspace.operations.length === 0) {
-    lines.push(t(lang, 'ws.ops.empty'));
-  } else {
-    workspace.operations.forEach((operation, index) => {
-      lines.push(operationLine(lang, operation, index));
-      keyboard
-        .text('✏️', `ws:op:conf:${index}`)
-        .text('⬆️', `ws:op:up:${index}`)
-        .text('⬇️', `ws:op:dn:${index}`)
-        .text('🗑', `ws:op:rm:${index}`)
-        .row();
-    });
+  keyboard
+    .text(t(lang, 'ws.btn.replace'), `ws:file:rp:${file.id}`)
+    .text(t(lang, 'ws.btn.remove'), `ws:file:rm:${file.id}`)
+    .row()
+    .text(t(lang, 'ws.btn.back'), 'ws:files')
+    .text(t(lang, 'ws.btn.menu'), 'menu:home');
+
+  const text = [
+    t(lang, 'ws.files.actionsTitle', { name: file.name }),
+    '',
+    t(lang, 'ws.files.actionsHint'),
+    '',
+    t(lang, 'ws.files.position', {
+      index: index + 1,
+      total: workspace.files.length,
+      pages: file.pages,
+      size: formatBytes(file.sizeBytes),
+    }),
+  ].join('\n');
+
+  return { text, keyboard };
+}
+
+export function replacePromptPanel(lang: Lang, workspace: Workspace, fileId: string): Panel {
+  const file = workspace.files[fileIndex(workspace, fileId)];
+  const text = file
+    ? t(lang, 'ws.files.replacePrompt', { name: file.name })
+    : t(lang, 'ws.files.noReplace');
+  return {
+    text,
+    keyboard: new InlineKeyboard()
+      .text(t(lang, 'ws.btn.back'), 'ws:repcancel')
+      .text(t(lang, 'ws.btn.menu'), 'menu:home'),
+  };
+}
+
+export function advancedToolsPanel(lang: Lang): Panel {
+  const keyboard = new InlineKeyboard();
+  for (const [id, definition] of Object.entries(OPERATION_CATEGORIES)) {
+    keyboard.text(t(lang, definition.labelKey), `ws:cat:${id}`).row();
   }
+  keyboard
+    .text(t(lang, 'ws.cat.merge'), 'ws:merge')
+    .row()
+    .text(t(lang, 'ws.btn.back'), 'ws:more')
+    .text(t(lang, 'ws.btn.menu'), 'menu:home');
 
-  keyboard.text(t(lang, 'ws.btn.addOp'), 'ws:tools').row();
-
-  if (workspace.operations.length > 0) {
-    keyboard
-      .text(t(lang, 'ws.btn.presets'), 'ws:presets')
-      .text(t(lang, 'ws.btn.clearOps'), 'ws:clearops')
-      .row();
+  const lines = [t(lang, 'ws.advanced.title'), '', t(lang, 'ws.advanced.hint'), ''];
+  for (const definition of Object.values(OPERATION_CATEGORIES)) {
+    lines.push(
+      `${t(lang, definition.labelKey)} — ${t(lang, `${definition.labelKey}.desc` as TranslationKey)}`,
+    );
   }
-
-  keyboard.text(t(lang, 'ws.btn.back'), 'ws:back').text(t(lang, 'ws.btn.menu'), 'menu:home');
 
   return { text: lines.join('\n'), keyboard };
 }
 
 export function operationsCatalogPanel(lang: Lang, category?: OperationCategory): Panel {
+  if (!category) return advancedToolsPanel(lang);
+
   const keyboard = new InlineKeyboard();
-
-  if (!category) {
-    const lines = [t(lang, 'ws.ops.title'), '', t(lang, 'ws.ops.selectCategory')];
-    for (const [id, definition] of Object.entries(OPERATION_CATEGORIES)) {
-      keyboard.text(t(lang, definition.labelKey), `ws:cat:${id}`).row();
-    }
-    keyboard
-      .text(t(lang, 'ws.btn.backToOps'), 'ws:ops')
-      .text(t(lang, 'ws.btn.menu'), 'menu:home');
-    return { text: lines.join('\n'), keyboard };
-  }
-
   const definition = OPERATION_CATEGORIES[category];
-  const lines = [t(lang, definition.labelKey), '', t(lang, 'ws.ops.choose')];
+  const lines = [
+    t(lang, definition.labelKey),
+    '',
+    t(lang, `${definition.labelKey}.desc` as TranslationKey),
+    '',
+    t(lang, 'ws.advanced.chooseTool'),
+    '',
+    ...definition.types.map((type) => `• ${t(lang, operationLabelKey(type))}`),
+  ];
   for (const type of definition.types) {
     keyboard.text(t(lang, operationLabelKey(type)), `ws:addop:${type}`).row();
   }
+  if (category === 'organization') {
+    keyboard.text(t(lang, 'ws.cat.merge'), 'ws:merge').row();
+  }
   keyboard
-    .text(t(lang, 'ws.btn.categories'), 'ws:tools')
-    .text(t(lang, 'ws.btn.backToOps'), 'ws:ops');
+    .text(t(lang, 'ws.btn.back'), 'ws:tools')
+    .text(t(lang, 'ws.btn.menu'), 'menu:home');
 
   return { text: lines.join('\n'), keyboard };
 }
 
-function pagesForOperation(workspace: Workspace, operation: WorkspaceOperation, config: AppConfig): number {
+function pagesForOperation(
+  workspace: Workspace,
+  operation: WorkspaceOperation,
+  config: AppConfig,
+): number {
   const index = workspace.operations.findIndex((entry) => entry.id === operation.id);
   const pages =
     index >= 0 ? maxPagesBeforeOperation(workspace, index, remainingConfig(config)) : 0;
@@ -683,7 +990,40 @@ export function operationConfigPanel(
       break;
   }
 
-  keyboard.text(t(lang, 'ws.btn.backToOps'), 'ws:ops').text(t(lang, 'ws.btn.menu'), 'menu:home');
+  keyboard.text(t(lang, 'ws.btn.back'), 'ws:ops').text(t(lang, 'ws.btn.menu'), 'menu:home');
+
+  return { text: lines.join('\n'), keyboard };
+}
+
+export function workspaceOperationsPanel(lang: Lang, workspace: Workspace): Panel {
+  const keyboard = new InlineKeyboard();
+  const lines = [t(lang, 'ws.ops.title'), ''];
+
+  if (workspace.operations.length === 0) {
+    lines.push(t(lang, 'ws.ops.empty'));
+  } else {
+    workspace.operations.forEach((operation, index) => {
+      lines.push(operationLine(lang, operation, index));
+      keyboard
+        .text('✏️', `ws:op:conf:${index}`)
+        .text('⬆️', `ws:op:up:${index}`)
+        .text('⬇️', `ws:op:dn:${index}`)
+        .text('🗑', `ws:op:rm:${index}`)
+        .row();
+    });
+  }
+
+  if (workspace.files.length > 0 && workspace.operations.length > 0) {
+    keyboard.text(t(lang, 'ws.btn.processNow'), 'ws:run').row();
+  }
+
+  keyboard.text(t(lang, 'ws.btn.addOp'), 'ws:tools').row();
+
+  if (workspace.operations.length > 0) {
+    keyboard.text(t(lang, 'ws.btn.clearOps'), 'ws:clearops').row();
+  }
+
+  keyboard.text(t(lang, 'ws.btn.back'), 'ws:back').text(t(lang, 'ws.btn.menu'), 'menu:home');
 
   return { text: lines.join('\n'), keyboard };
 }
@@ -694,7 +1034,7 @@ export function modePanel(lang: Lang, workspace: Workspace): Panel {
     .row()
     .text(t(lang, 'ws.mode.individual'), 'ws:mode:i')
     .row()
-    .text(t(lang, 'ws.btn.back'), 'ws:back')
+    .text(t(lang, 'ws.btn.back'), 'ws:more')
     .text(t(lang, 'ws.btn.menu'), 'menu:home');
 
   const text = [
@@ -712,107 +1052,16 @@ export function modePanel(lang: Lang, workspace: Workspace): Panel {
   return { text, keyboard };
 }
 
-export function presetsPanel(lang: Lang): Panel {
-  const keyboard = new InlineKeyboard();
-  for (const id of PRESET_IDS) {
-    keyboard.text(t(lang, PRESETS[id].labelKey), `ws:preset:${id}`).row();
-  }
-  keyboard.text(t(lang, 'ws.btn.back'), 'ws:back').text(t(lang, 'ws.btn.menu'), 'menu:home');
-
-  const text = [
-    t(lang, 'ws.presets.title'),
-    '',
-    t(lang, 'ws.presets.hint'),
-    '',
-    t(lang, 'ws.presets.cost'),
-  ].join('\n');
-
-  return { text, keyboard };
-}
-
-export function reviewPanel(
-  lang: Lang,
-  workspace: Workspace,
-  config: AppConfig,
-): { panel: Panel; ok: boolean; issue?: WorkspaceIssue } {
-  const totals = workspaceTotals(workspace);
-  const backKeyboard = new InlineKeyboard()
-    .text(t(lang, 'ws.btn.backToOps'), 'ws:ops')
-    .text(t(lang, 'ws.btn.back'), 'ws:back')
-    .text(t(lang, 'ws.btn.menu'), 'menu:home');
-
-  try {
-    const simulation = simulateWorkspace(workspace, remainingConfig(config));
-    const lines = [
-      t(lang, 'ws.review.title'),
-      '',
-      t(lang, 'ws.review.mode', { mode: modeLabel(lang, workspace) }),
-      t(lang, 'ws.review.input', {
-        files: workspace.files.length,
-        pages: totals.pages,
-        size: formatBytes(totals.bytes),
-      }),
-      '',
-      t(lang, 'ws.review.steps'),
-    ];
-
-    simulation.stages.forEach((stage, index) => {
-      lines.push(
-        t(lang, 'ws.review.stepOut', {
-          label: `${index + 1}. ${t(lang, operationLabelKey(stage.operation.type))}`,
-          summary: operationSummary(lang, stage.operation),
-          files: stage.after.length,
-        }),
-      );
-    });
-
-    if (simulation.stages.length === 0) {
-      lines.push(t(lang, 'ws.review.noOps'));
-    }
-
-    const outputPages = simulation.finalFiles.reduce((sum, file) => sum + file.pages, 0);
-    lines.push(
-      '',
-      t(lang, 'ws.review.output', {
-        files: simulation.finalFiles.length,
-        pages: outputPages,
-      }),
-    );
-
-    if (simulation.warnings.length > 0) {
-      lines.push('', t(lang, 'ws.review.warnings'));
-      for (const warning of simulation.warnings) {
-        lines.push(`• ${t(lang, warning.key, warning.params)}`);
-      }
-    }
-
-    lines.push('', t(lang, 'ws.review.ok'));
-
-    const keyboard = new InlineKeyboard().text(t(lang, 'ws.btn.process'), 'ws:run').row();
-    keyboard
-      .text(t(lang, 'ws.btn.backToOps'), 'ws:ops')
-      .text(t(lang, 'ws.btn.menu'), 'menu:home');
-
-    return { panel: { text: lines.join('\n'), keyboard }, ok: true };
-  } catch (error) {
-    const issue = error instanceof WorkspaceValidationError ? error.issue : null;
-    const lines = [
-      t(lang, 'ws.review.title'),
-      '',
-      issue ? issueText(lang, issue, workspace, config) : t(lang, 'ws.run.notReady'),
-      '',
-      t(lang, 'ws.review.input', {
-        files: workspace.files.length,
-        pages: totals.pages,
-        size: formatBytes(totals.bytes),
-      }),
-    ];
-    return {
-      panel: { text: lines.join('\n'), keyboard: backKeyboard },
-      ok: false,
-      ...(issue ? { issue } : {}),
-    };
-  }
+export function cancelConfirmPanel(lang: Lang): Panel {
+  return {
+    text: [t(lang, 'ws.cancel.title'), '', t(lang, 'ws.cancel.body')].join('\n'),
+    keyboard: new InlineKeyboard()
+      .text(t(lang, 'ws.btn.cancelConfirm'), 'ws:cancelconfirm')
+      .row()
+      .text(t(lang, 'ws.btn.cancelKeep'), 'ws:cancelkeep')
+      .row()
+      .text(t(lang, 'ws.btn.menu'), 'menu:home'),
+  };
 }
 
 export function issueText(
@@ -854,9 +1103,7 @@ export function issueText(
         pages: Number(params.pages ?? config.maxPdfPages),
       });
     case 'rasterLimit': {
-      const issueLabel = params.labelKey
-        ? t(lang, params.labelKey as TranslationKey)
-        : label;
+      const issueLabel = params.labelKey ? t(lang, params.labelKey as TranslationKey) : label;
       return t(lang, 'ws.err.rasterLimit', {
         label: issueLabel,
         limit: Number(params.limit ?? 0),
@@ -886,14 +1133,8 @@ export function issueText(
 
 export function languagePanel(lang: Lang): Panel {
   const keyboard = new InlineKeyboard()
-    .text(
-      `${languageLabel('bn')}${lang === 'bn' ? ' ✅' : ''}`,
-      'lang:set:bn',
-    )
-    .text(
-      `${languageLabel('en')}${lang === 'en' ? ' ✅' : ''}`,
-      'lang:set:en',
-    )
+    .text(`${languageLabel('bn')}${lang === 'bn' ? ' ✅' : ''}`, 'lang:set:bn')
+    .text(`${languageLabel('en')}${lang === 'en' ? ' ✅' : ''}`, 'lang:set:en')
     .row()
     .text(t(lang, 'menu.back'), 'menu:home');
 
@@ -908,27 +1149,6 @@ export function languagePanel(lang: Lang): Panel {
   ].join('\n');
 
   return { text, keyboard };
-}
-
-export function toolsPanel(lang: Lang): Panel {
-  const keyboard = new InlineKeyboard()
-    .text(t(lang, 'tools.start'), 'menu:new')
-    .row()
-    .text(t(lang, 'menu.back'), 'menu:home');
-
-  const lines = [t(lang, 'tools.title'), '', t(lang, 'tools.intro'), ''];
-
-  for (const definition of Object.values(OPERATION_CATEGORIES)) {
-    lines.push(t(lang, definition.labelKey));
-    for (const type of definition.types) {
-      lines.push(`• ${t(lang, operationLabelKey(type))}`);
-    }
-    lines.push('');
-  }
-
-  lines.push(t(lang, 'tools.note'));
-
-  return { text: lines.join('\n'), keyboard };
 }
 
 export function compressionPanel(lang: Lang): Panel {
@@ -961,11 +1181,9 @@ export function progressText(
   total: number,
   label: string,
 ): string {
-  return [
-    t(lang, 'ws.run.progress', { step, total, label }),
-    '',
-    t(lang, 'ws.run.cancelHint'),
-  ].join('\n');
+  return [t(lang, 'ws.run.progress', { step, total, label }), '', t(lang, 'ws.run.cancelHint')].join(
+    '\n',
+  );
 }
 
 export function rasterProgressText(
@@ -989,14 +1207,12 @@ export interface CompletionInfo {
   fileCount: number;
   pages: number;
   tools: number;
-  startedAt: number;
-  completedAt: number;
   outputBytes: number;
+  durationMs: number;
 }
 
 export function completionText(lang: Lang, info: CompletionInfo): string {
   const lines = [t(lang, 'ws.run.completeTitle'), ''];
-
   if (info.zip) {
     lines.push(
       t(lang, 'ws.run.completeFiles', { count: info.fileCount }),
@@ -1005,34 +1221,20 @@ export function completionText(lang: Lang, info: CompletionInfo): string {
   } else {
     lines.push(t(lang, 'ws.run.completeFile', { name: info.outputName }));
   }
-
   lines.push(
     t(lang, 'ws.run.pages', { pages: info.pages }),
     t(lang, 'ws.run.tools', { count: info.tools }),
-    t(lang, 'ws.run.started', {
-      time: formatDhakaTimestamp(new Date(info.startedAt)),
-    }),
-    t(lang, 'ws.run.completed', {
-      time: formatDhakaTimestamp(new Date(info.completedAt)),
-    }),
-    t(lang, 'ws.run.duration', {
-      duration: formatDuration(lang, Math.max(0, info.completedAt - info.startedAt)),
-    }),
+    t(lang, 'ws.run.duration', { duration: formatDuration(lang, Math.max(0, info.durationMs)) }),
     info.zip
       ? t(lang, 'ws.run.outputZip', { size: formatBytes(info.outputBytes) })
       : t(lang, 'ws.run.output', { size: formatBytes(info.outputBytes) }),
     '',
     t(lang, 'ws.run.expiredNote'),
   );
-
   return lines.join('\n');
 }
 
-export function failureText(
-  lang: Lang,
-  message: string,
-  failedLabel?: string,
-): string {
+export function failureText(lang: Lang, message: string, failedLabel?: string): string {
   const lines = [t(lang, 'ws.run.failedTitle')];
   if (failedLabel) lines.push(t(lang, 'ws.run.failedStep', { label: failedLabel }));
   lines.push(t(lang, 'ws.run.error', { error: message }), '', t(lang, 'ws.run.originalsKept'));
@@ -1043,9 +1245,7 @@ export function retryKeyboard(lang: Lang): InlineKeyboard {
   return new InlineKeyboard()
     .text(t(lang, 'ws.btn.retry'), 'ws:retry')
     .row()
-    .text(t(lang, 'ws.btn.ops'), 'ws:ops')
     .text(t(lang, 'ws.btn.back'), 'ws:back')
-    .row()
     .text(t(lang, 'ws.btn.menu'), 'menu:home');
 }
 
@@ -1057,9 +1257,8 @@ export function resultKeyboard(lang: Lang): InlineKeyboard {
 }
 
 export function processingKeyboard(lang: Lang): InlineKeyboard {
-  return new InlineKeyboard().text(t(lang, 'ws.run.cancel'), 'ws:cancel');
-}
-
-export function presetLabel(lang: Lang, id: PresetId): string {
-  return t(lang, PRESETS[id].labelKey);
+  return new InlineKeyboard()
+    .text(t(lang, 'ws.btn.cancelRun'), 'ws:cancelrun')
+    .row()
+    .text(t(lang, 'ws.btn.menu'), 'menu:home');
 }

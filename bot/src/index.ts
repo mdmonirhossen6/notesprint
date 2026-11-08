@@ -4,6 +4,7 @@ import { loadConfig } from './config.js';
 import { createLogger } from './logger.js';
 import { createBot } from './bot/create-bot.js';
 import { createLanguageStore, translate } from './bot/i18n.js';
+import { createTutorialStore } from './bot/tutorial.js';
 import { cleanupExpiredFiles, cleanupFile, ensureDirectory } from './files/paths.js';
 import { createTaskQueue } from './files/queue.js';
 import { createRateLimiter } from './files/rate-limit.js';
@@ -20,6 +21,7 @@ const UPLOAD_SESSION_TTL_MS = 15 * 60 * 1000;
 const MERGE_SESSION_TTL_MS = 30 * 60 * 1000;
 const TOOL_SESSION_TTL_MS = 30 * 60 * 1000;
 const LANGUAGE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const TUTORIAL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAINTENANCE_INTERVAL_MS = 5 * 60 * 1000;
 const SHUTDOWN_DRAIN_MS = 20_000;
 
@@ -38,6 +40,7 @@ async function main(): Promise<void> {
   const toolSessions = createToolSessionStore({ ttlMs: TOOL_SESSION_TTL_MS });
   const workspaces = createWorkspaceStore({ ttlMs: WORKSPACE_TTL_MS });
   const languages = createLanguageStore({ ttlMs: LANGUAGE_TTL_MS });
+  const tutorials = createTutorialStore({ ttlMs: TUTORIAL_TTL_MS });
   const uploadRateLimiter = createRateLimiter({
     limit: config.uploadRateLimitCount,
     windowMs: config.uploadRateLimitWindowMinutes * 60 * 1000,
@@ -110,6 +113,7 @@ async function main(): Promise<void> {
       expiredWorkspaces = removedWorkspaces.length;
       const prunedLanguages = languages.prune();
       const prunedLimiters = uploadRateLimiter.prune();
+      const prunedTutorials = tutorials.prune();
       if (
         removedFiles > 0 ||
         expiredSessions > 0 ||
@@ -118,6 +122,7 @@ async function main(): Promise<void> {
         expiredWorkspaces > 0 ||
         prunedLanguages > 0 ||
         prunedLimiters > 0 ||
+        prunedTutorials > 0 ||
         warnedWorkspaces > 0
       ) {
         logger.info('temp_cleanup', {
@@ -129,6 +134,7 @@ async function main(): Promise<void> {
           warnedWorkspaces,
           prunedLanguages,
           prunedLimiters,
+          prunedTutorials,
         });
       }
     } catch (error) {
@@ -147,6 +153,7 @@ async function main(): Promise<void> {
     jobRunner,
     workspaces,
     languages,
+    tutorials,
   });
   await bot.init();
 

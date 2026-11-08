@@ -307,15 +307,18 @@ test('merge session prune returns expired sessions and aborts their controllers'
   assert.equal(store.activeCount(), 0);
 });
 
-test('menu exposes implemented workspace tools but no unimplemented placeholders', () => {
+test('menu exposes the four simple options and no unimplemented placeholders', () => {
   const buttons = mainMenuKeyboard('en', config(), false, false).inline_keyboard.flat();
   const labels = buttons.map((button) => button.text);
 
-  assert.equal(labels.includes('🆕 New PDF Workspace'), true);
-  assert.equal(labels.includes('🧰 Available PDF Tools'), true);
+  assert.equal(buttons.length, 4);
+  assert.equal(labels.includes('🆕 New PDF Processing'), true);
+  assert.equal(labels.includes('📖 How to Use'), true);
   assert.equal(labels.includes('🌐 Language: বাংলা / English'), true);
+  assert.equal(labels.includes('🚀 Explore Prostuti'), true);
+  assert.equal(labels.includes('🧰 Available PDF Tools'), false);
   assert.equal(labels.includes('✨ Enhance PDF'), false);
-  assert.equal(labels.includes('Compress PDF'), true);
+  assert.equal(labels.includes('Compress PDF'), false);
 
   const help = helpText('en', config());
   assert.match(help, /Workspace: up to 10 files, 40 MB/);

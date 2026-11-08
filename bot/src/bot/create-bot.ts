@@ -12,6 +12,7 @@ import type { JobRunner } from '../jobs/runner.js';
 import type { WorkspaceStore } from '../workspace/store.js';
 import type { BotDeps } from './types.js';
 import type { LanguageStore } from './i18n.js';
+import type { TutorialStore } from './tutorial.js';
 import { attachErrorHandler } from './ui.js';
 import { registerUserHandlers } from './handlers/user.js';
 import { registerWorkspaceHandlers } from './handlers/workspace.js';
@@ -31,6 +32,7 @@ export interface BotDependencies {
   jobRunner: JobRunner;
   workspaces: WorkspaceStore;
   languages: LanguageStore;
+  tutorials: TutorialStore;
 }
 
 export function createBot(dependencies: BotDependencies): Bot {
@@ -45,6 +47,7 @@ export function createBot(dependencies: BotDependencies): Bot {
     jobRunner,
     workspaces,
     languages,
+    tutorials,
   } = dependencies;
 
   const bot = new Bot(config.botToken, {
@@ -78,6 +81,7 @@ export function createBot(dependencies: BotDependencies): Bot {
     jobRunner,
     workspaces,
     languages,
+    tutorials,
   };
 
   registerUserHandlers(bot, deps);

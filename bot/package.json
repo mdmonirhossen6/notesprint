@@ -13,7 +13,7 @@
     "build": "tsc -p tsconfig.json",
     "start:prod": "node --max-semi-space-size=2 --env-file-if-exists=.env dist/src/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test tests/config.test.ts tests/db.test.ts tests/auth.test.ts tests/server.test.ts tests/channels.test.ts tests/membership.test.ts tests/files.test.ts tests/compression.test.ts tests/stateless.test.ts tests/merge.test.ts tests/organize.test.ts tests/raster.test.ts tests/nup.test.ts tests/tools.test.ts tests/workspace.test.ts",
+    "test": "node --import tsx --test tests/config.test.ts tests/db.test.ts tests/auth.test.ts tests/server.test.ts tests/channels.test.ts tests/membership.test.ts tests/files.test.ts tests/compression.test.ts tests/stateless.test.ts tests/merge.test.ts tests/organize.test.ts tests/raster.test.ts tests/nup.test.ts tests/tools.test.ts tests/workspace.test.ts tests/ux.test.ts",
     "benchmark": "node --import tsx scripts/benchmark-tools.ts && node --import tsx scripts/benchmark-workspace.ts",
     "set-webhook": "node --env-file-if-exists=.env --import tsx scripts/set-webhook.ts",
     "delete-webhook": "node --env-file-if-exists=.env --import tsx scripts/delete-webhook.ts",
